@@ -1,0 +1,64 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Clone sub-web source
+        run: git clone --depth 1 https://github.com/CareyWang/sub-web.git /tmp/sub-web-src
+
+      - name: Verify custom files exist
+        run: |
+          test -f sub-web/src/views/Subconverter.vue || (echo "ERROR: Subconverter.vue not found" && exit 1)
+          test -f sub-web/src/config/remote-configs.js || (echo "ERROR: remote-configs.js not found" && exit 1)
+          test -f sub-web/.env.gh-pages || (echo "ERROR: .env.gh-pages not found" && exit 1)
+
+      - name: Apply custom UI & configs
+        run: |
+          cp sub-web/src/views/Subconverter.vue /tmp/sub-web-src/src/views/Subconverter.vue
+          cp sub-web/src/config/remote-configs.js /tmp/sub-web-src/src/config/remote-configs.js
+          cp sub-web/.env.gh-pages /tmp/sub-web-src/.env.production
+
+      - name: Install & Build
+        working-directory: /tmp/sub-web-src
+        run: |
+          npm install --legacy-peer-deps
+          npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: /tmp/sub-web-src/dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,460 +1,285 @@
 #!/usr/bin/env python3
-import base64
-import re
-import os
-import sys
+"""GFWList parser: 拉取 → 解析 → 生成 ACL / Clash 规则文件"""
+
+import base64, re, os, sys
 from glob import glob
+from urllib.request import urlopen
 
-def is_ip(s):
-    if not s:
-        return False
-    if s.endswith('^'):
-        s = s[:-1]
-    if '.' in s and ':' not in s:
-        ipv4_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-        if re.match(ipv4_pattern, s):
-            parts = s.split('.')
-            if all(0 <= int(p) <= 255 for p in parts):
-                return True
-    if ':' in s:
-        ipv6_pattern = r'^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$|^(::)$|^::1$'
-        if re.match(ipv6_pattern, s):
-            return True
-        if s.startswith('::ffff:'):
-            ipv4_in_v6_pattern = r'^::ffff:(\d{1,3}\.){3}\d{1,3}$'
-            if re.match(ipv4_in_v6_pattern, s):
-                return True
-        return False
-    return False
+GFWLIST_URL = "https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt"
 
-def is_cidr(s):
+# ── 预编译正则 ──
+_RE_IPV4 = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
+_RE_IPV6 = re.compile(r'^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$|^::$|^::1$')
+_RE_IPV4IN6 = re.compile(r'^::ffff:(\d{1,3}\.){3}\d{1,3}$')
+_RE_DOMAIN = re.compile(r'(?:https?://)?(?:www\.)?([^/:]+)')
+
+# ── 工具 ──
+
+def _is_ipv4(s: str) -> bool:
+    return bool(_RE_IPV4.match(s) and all(0 <= int(p) <= 255 for p in s.split('.')))
+
+def _is_ipv6(s: str) -> bool:
+    return bool(_RE_IPV6.match(s) or _RE_IPV4IN6.match(s))
+
+def _is_ip(s: str) -> bool:
+    s = s.rstrip('^')
+    return ('/' not in s) and ('.' in s and _is_ipv4(s) if ':' not in s else _is_ipv6(s))
+
+def _is_cidr(s: str) -> bool:
     if '/' not in s:
         return False
-    ip_part = s.split('/')[0]
-    suffix = s.split('/')[1]
+    ip, suffix = s.split('/', 1)
     if not suffix.isdigit():
         return False
-    suffix_val = int(suffix)
-    if '.' in ip_part and ':' not in ip_part:
-        ipv4_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-        if re.match(ipv4_pattern, ip_part):
-            parts = ip_part.split('.')
-            if all(0 <= int(p) <= 255 for p in parts):
-                if 0 <= suffix_val <= 32:
-                    return True
-        return False
-    if ':' in ip_part:
-        ipv6_pattern = r'^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$|^(::)$|^::1$'
-        if re.match(ipv6_pattern, ip_part):
-            if 0 <= suffix_val <= 128:
-                return True
-        if ip_part.startswith('::ffff:'):
-            ipv4_in_v6_pattern = r'^::ffff:(\d{1,3}\.){3}\d{1,3}$'
-            if re.match(ipv4_in_v6_pattern, ip_part):
-                if 0 <= suffix_val <= 128:
-                    return True
-        return False
-    return False
+    n = int(suffix)
+    if ':' not in ip:
+        return _is_ipv4(ip) and 0 <= n <= 32
+    return _is_ipv6(ip) and 0 <= n <= 128
 
-def normalize_ip_rule(ip_rule):
-    ip_rule = ip_rule.strip()
-    if not ip_rule:
-        return None
-    if ip_rule.endswith('^'):
-        ip_rule = ip_rule[:-1]
-    if is_ip(ip_rule) or is_cidr(ip_rule):
-        return ip_rule
+def _normalize_ip(ip: str) -> str | None:
+    ip = ip.strip().rstrip('^')
+    return ip if _is_ip(ip) or _is_cidr(ip) else None
+
+def _to_cidr(ip: str) -> str | None:
+    if _is_cidr(ip):
+        return ip
+    if _is_ip(ip):
+        return ip + ('/128' if ':' in ip else '/32')
     return None
 
-def normalize_ip_for_clash(ip_rule):
-    if is_cidr(ip_rule):
-        return ip_rule
-    if is_ip(ip_rule):
-        if ':' in ip_rule:
-            return ip_rule + '/128'
-        return ip_rule + '/32'
-    return None
+def _extract_domain(url: str) -> str | None:
+    m = _RE_DOMAIN.search(url.strip().rstrip('^').rstrip('/'))
+    return m.group(1) if m and not _is_ip(m.group(1)) and not _is_cidr(m.group(1)) else None
 
-def fetch_gfwlist(url="https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt"):
+
+# ── 拉取 & 解析 ──
+
+def fetch(url: str = GFWLIST_URL) -> str:
     try:
-        import urllib.request
-        with urllib.request.urlopen(url) as response:
-            return response.read().decode('utf-8')
+        with urlopen(url) as r:
+            return r.read().decode('utf-8')
     except Exception as e:
-        print(f"Error fetching GFWList: {e}")
-        sys.exit(1)
+        sys.exit(f"Error fetching GFWList: {e}")
 
-def extract_domain_from_url(url):
-    url = url.strip()
-    if url.endswith('^'):
-        url = url[:-1]
-    url = url.rstrip('/')
 
-    domain_match = re.search(r'(?:https?://)?(?:www\.)?([^/:]+)', url)
-    if domain_match:
-        domain = domain_match.group(1)
-        if domain and not is_ip(domain) and not is_cidr(domain):
-            return domain
-    return None
-
-def parse_gfwlist(content):
-    domain_blacklist = []
-    domain_whitelist = []
-    ip_blacklist = []
-    ip_whitelist = []
+def parse(content: str) -> tuple[list, list, list, list]:
+    """返回 (domain_black, domain_white, ip_black, ip_white)"""
+    d_blk, d_wht, i_blk, i_wht = [], [], [], []
 
     try:
-        decoded = base64.b64decode(content).decode('utf-8')
-    except:
-        decoded = content
+        text = base64.b64decode(content).decode('utf-8')
+    except Exception:
+        text = content
 
-    for line in decoded.split('\n'):
+    # 硬编码例外
+    skip = {
+        '||addons.mozilla.org/*-*/firefox/addon/ublock-origin/*',
+        '||addons.mozilla.org/firefox/downloads/file/*/ublock_origin-*.xpi',
+    }
+
+    for line in text.split('\n'):
         line = line.strip()
-
-        if not line or line.startswith('!') or line.startswith('['):
-            continue
-        
-        # 忽略特定的无效规则
-        if line == '||addons.mozilla.org/*-*/firefox/addon/ublock-origin/*':
-            continue
-        if line == '||addons.mozilla.org/firefox/downloads/file/*/ublock_origin-*.xpi':
+        if not line or line[0] in '![' or line in skip:
             continue
 
+        # @@||rule  → whitelist
         if line.startswith('@@||'):
-            rule = line[4:]
-            if rule.endswith('^'):
-                rule = rule[:-1]
-            if is_ip(rule) or is_cidr(rule):
-                normalized = normalize_ip_rule(rule)
-                if normalized:
-                    ip_whitelist.append(normalized)
-            else:
-                domain_whitelist.append(rule)
+            rule = line[4:].rstrip('^')
+            ip = _normalize_ip(rule)
+            (i_wht if ip else d_wht).append(ip or rule)
+        # ||rule  → blacklist
         elif line.startswith('||'):
-            rule = line[2:]
-            if rule.endswith('^'):
-                rule = rule[:-1]
-            if is_ip(rule) or is_cidr(rule):
-                normalized = normalize_ip_rule(rule)
-                if normalized:
-                    ip_blacklist.append(normalized)
-            else:
-                domain_blacklist.append(rule)
+            rule = line[2:].rstrip('^')
+            ip = _normalize_ip(rule)
+            (i_blk if ip else d_blk).append(ip or rule)
+        # @@|url → whitelist domain
         elif line.startswith('@@|') and len(line) > 3:
-            domain = extract_domain_from_url(line[3:])
-            if domain:
-                domain_whitelist.append(domain)
+            d = _extract_domain(line[3:])
+            if d: d_wht.append(d)
+        # |url → blacklist domain
         elif line.startswith('|') and len(line) > 1:
-            domain = extract_domain_from_url(line[1:])
-            if domain:
-                domain_blacklist.append(domain)
+            d = _extract_domain(line[1:])
+            if d: d_blk.append(d)
 
-    return domain_blacklist, domain_whitelist, ip_blacklist, ip_whitelist
+    return d_blk, d_wht, i_blk, i_wht
 
-def format_domain_suffix_rules(domains):
-    rules = []
-    for domain in sorted(set(domains)):
-        if domain:
-            rules.append(f"- DOMAIN-SUFFIX,{domain}")
-    return rules
 
-def format_acl_rules(domains):
-    rules = []
-    for domain in sorted(set(domains)):
-        if domain:
-            rules.append(f"(^|\\.){domain}$")
-    return rules
+# ── 格式化 ──
 
-def write_file(filepath, content):
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    with open(filepath, 'w', encoding='utf-8') as f:
+def _fmt_domain_suffix(domains: list) -> list[str]:
+    return [f"- DOMAIN-SUFFIX,{d}" for d in sorted(set(filter(None, domains)))]
+
+def _fmt_acl_domains(domains: list) -> list[str]:
+    return [f"(^|\\\\.){d}$" for d in sorted(set(filter(None, domains)))]
+
+def _fmt_ip_cidr_clash(ips: list) -> list[str]:
+    out = []
+    for ip in sorted(set(ips)):
+        n = _to_cidr(ip)
+        if n:
+            out.append(f"IP-CIDR6,{n},no-resolve" if ':' in n else f"IP-CIDR,{n},no-resolve")
+    return out
+
+def _fmt_ip_acl(ips: list) -> list[str]:
+    return sorted(set(filter(None, ips)))
+
+
+# ── 文件输出 ──
+
+def _write(path: str, content: str):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w', encoding='utf-8') as f:
         f.write(content)
 
-def format_ip_cidr_rules(ip_rules):
-    rules = []
-    for ip in sorted(set(ip_rules)):
-        normalized = normalize_ip_for_clash(ip)
-        if normalized:
-            if ':' in normalized:
-                rules.append(f"IP-CIDR6,{normalized},no-resolve")
-            else:
-                rules.append(f"IP-CIDR,{normalized},no-resolve")
-    return rules
+def _write_domain_ip_split(base: str, domains: list[str], ips: list[str], fmt: str):
+    """生成 _domain 和 _ip 分离文件 (fmt: 'yaml' or 'list')"""
+    if domains:
+        if fmt == 'yaml':
+            _write(f"{base}_domain.yaml", "payload:\n" + '\n'.join(f"  - {d}" for d in domains) + '\n')
+        else:
+            _write(f"{base}_domain.list", '\n'.join(domains) + '\n')
+    if ips:
+        if fmt == 'yaml':
+            _write(f"{base}_ip.yaml", "payload:\n" + '\n'.join(f"  - {i}" for i in ips) + '\n')
+        else:
+            _write(f"{base}_ip.list", '\n'.join(ips) + '\n')
 
-def format_ip_cidr_acl_rules(ip_rules):
-    rules = []
-    for ip in sorted(set(ip_rules)):
-        if ip:
-            rules.append(ip)
-    return rules
 
-def parse_yaml_rule_line(line):
-    line = line.strip()
-    if not line:
+# ── split 已有文件 ──
+
+def _parse_yaml_line(line: str) -> tuple[str | None, str | None]:
+    s = line.strip()
+    if not s:
         return None, None
-    rule = None
-    if line.startswith('- '):
-        rule = line[2:]
-    elif line.startswith('  - '):
-        rule = line[4:]
-    else:
-        return None, None
-    if ',' in rule:
+    rule = s[2:] if s.startswith('- ') else (s[4:] if s.startswith('  - ') else None)
+    if rule and ',' in rule:
         return rule.split(',', 1)
-    return rule, ''
+    return (rule, '') if rule else (None, None)
 
-def parse_list_rule_line(line):
-    line = line.strip()
-    if not line or line.startswith('#'):
+def _parse_list_line(line: str) -> tuple[str | None, str | None]:
+    s = line.strip()
+    if not s or s.startswith('#'):
         return None, None
-    if ',' in line:
-        return line.split(',', 1)
-    return line, ''
+    return s.split(',', 1) if ',' in s else (s, '')
 
-def is_domain_rule_type(rule_type):
-    return rule_type in ('DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD', 'DOMAIN-REGEX')
+def _is_domain_type(t: str) -> bool:
+    return t in ('DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD', 'DOMAIN-REGEX')
 
-def is_ip_rule_type(rule_type):
-    return rule_type in ('IP-CIDR', 'IP-CIDR6', 'IP-SUFFIX', 'IP-ASN')
+def _is_ip_type(t: str) -> bool:
+    return t in ('IP-CIDR', 'IP-CIDR6', 'IP-SUFFIX', 'IP-ASN')
 
-def split_existing_rule_files():
-    print("Splitting existing rule files for mrs conversion...")
+def _read_existing(path: str) -> tuple[list, list]:
+    """读 UnBan 等已有文件 → (domains, ips)"""
+    domains, ips = [], []
+    if not os.path.exists(path):
+        return domains, ips
+    with open(path, encoding='utf-8') as f:
+        for line in f:
+            s = line.strip()
+            if s.startswith('- DOMAIN-SUFFIX,') or s.startswith('DOMAIN-SUFFIX,'):
+                domains.append(s.split(',', 1)[1])
+            elif s.startswith('- IP-CIDR') or s.startswith('  - IP-CIDR') or s.startswith('IP-CIDR'):
+                parts = s.replace('  - ', '').split(',')
+                if len(parts) >= 2:
+                    ips.append(parts[1])
+    return domains, ips
 
-    for filepath in glob('Clash/Providers/*.yaml'):
-        if '_domain' in filepath or '_ip' in filepath:
+
+def split_existing_files():
+    print("Splitting existing rule files...")
+    for pattern in ['Clash/Providers/*.yaml', 'Clash/Providers/Ruleset/*.yaml']:
+        for fp in glob(pattern):
+            if '_domain' in fp or '_ip' in fp:
+                continue
+            _split_yaml(fp)
+    for fp in glob('Clash/Ruleset/*.list'):
+        if '_domain' in fp or '_ip' in fp:
             continue
-        split_yaml_file(filepath)
+        _split_list(fp)
 
-    for filepath in glob('Clash/Providers/Ruleset/*.yaml'):
-        if '_domain' in filepath or '_ip' in filepath:
-            continue
-        split_yaml_file(filepath)
 
-    for filepath in glob('Clash/Ruleset/*.list'):
-        if '_domain' in filepath or '_ip' in filepath:
-            continue
-        split_list_file(filepath)
-
-def split_yaml_file(filepath):
-    domains = []
-    ips = []
+def _split_yaml(fp: str):
+    domains, ips = [], []
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(fp, encoding='utf-8') as f:
             for line in f:
-                rule_type, rule_value = parse_yaml_rule_line(line)
-                if not rule_type or not rule_value:
-                    continue
-                if is_domain_rule_type(rule_type):
-                    domains.append((rule_type, rule_value.strip()))
-                elif is_ip_rule_type(rule_type):
-                    ips.append((rule_type, rule_value.strip()))
+                t, v = _parse_yaml_line(line)
+                if not t: continue
+                (domains if _is_domain_type(t) else ips).append((t, v.strip()))
     except Exception as e:
-        print(f"Warning: Failed to read {filepath}: {e}")
-        return
-
-    base_name = os.path.splitext(filepath)[0]
+        print(f"Warning: {fp}: {e}"); return
+    base = os.path.splitext(fp)[0]
     if domains:
-        unique_domains = sorted(set(domains))
-        domain_yaml = "payload:\n"
-        for rule_type, d in unique_domains:
-            domain_yaml += f"  - {rule_type},{d}\n"
-        write_file(f"{base_name}_domain.yaml", domain_yaml)
+        _write(f"{base}_domain.yaml", "payload:\n" + '\n'.join(f"  - {t},{d}" for t, d in sorted(set(domains))) + '\n')
     if ips:
-        unique_ips = sorted(set(ips))
-        ip_yaml = "payload:\n"
-        for rule_type, ip in unique_ips:
-            # 去掉 no-resolve 参数，只保留纯 IP/CIDR
-            clean_ip = ip.split(',')[0].strip()
-            ip_yaml += f"  - {clean_ip}\n"
-        write_file(f"{base_name}_ip.yaml", ip_yaml)
+        _write(f"{base}_ip.yaml", "payload:\n" + '\n'.join(f"  - {i.split(',')[0].strip()}" for _, i in sorted(set(ips))) + '\n')
 
-def split_list_file(filepath):
-    domains = []
-    ips = []
+
+def _split_list(fp: str):
+    domains, ips = [], []
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(fp, encoding='utf-8') as f:
             for line in f:
-                rule_type, rule_value = parse_list_rule_line(line)
-                if not rule_type or not rule_value:
-                    continue
-                if is_domain_rule_type(rule_type):
-                    domains.append((rule_type, rule_value.strip()))
-                elif is_ip_rule_type(rule_type):
-                    ips.append((rule_type, rule_value.strip()))
+                t, v = _parse_list_line(line)
+                if not t: continue
+                (domains if _is_domain_type(t) else ips).append((t, v.strip()))
     except Exception as e:
-        print(f"Warning: Failed to read {filepath}: {e}")
-        return
-
-    base_name = os.path.splitext(filepath)[0]
+        print(f"Warning: {fp}: {e}"); return
+    base = os.path.splitext(fp)[0]
     if domains:
-        unique_domains = sorted(set(domains))
-        domain_text = ""
-        for rule_type, d in unique_domains:
-            domain_text += f"{rule_type},{d}\n"
-        write_file(f"{base_name}_domain.list", domain_text)
+        _write(f"{base}_domain.list", '\n'.join(f"{t},{d}" for t, d in sorted(set(domains))) + '\n')
     if ips:
-        unique_ips = sorted(set(ips))
-        ip_text = ""
-        for rule_type, ip in unique_ips:
-            # 去掉 no-resolve 参数，只保留纯 IP/CIDR
-            clean_ip = ip.split(',')[0].strip()
-            ip_text += f"{clean_ip}\n"
-        write_file(f"{base_name}_ip.list", ip_text)
+        _write(f"{base}_ip.list", '\n'.join(i.split(',')[0].strip() for _, i in sorted(set(ips))) + '\n')
 
-def generate_acl_file(domain_list, ip_list, filename, title="GFWList Rules"):
-    header = f"""#**********************************************************************
-# {title}
-# Generated from GFWList
-#
-# 更新记录 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/more/New.md
-#
-#**********************************************************************
 
-[bypass_all]
-### 默认直连 自己可以自定义
-### [outbound_block_list] 禁止访问列表
-### [bypass_list] 直连列表 禁止访问列表
-### [proxy_list] 代理列表
-
-#**********************************************************************
-[proxy_list]
-
-# GFWList
-"""
-    domain_rules = format_acl_rules(domain_list)
-    ip_rules = format_ip_cidr_acl_rules(ip_list)
-    all_rules = domain_rules + ip_rules
-    content = header + '\n'.join(all_rules) + '\n'
-    write_file(filename, content)
-
-def generate_clash_provider_yaml(domain_list, ip_list, filename, title="payload"):
-    unique_domains = sorted(set(domain_list))
-    content = f"{title}:\n"
-    for domain in unique_domains:
-        content += f"  - DOMAIN-SUFFIX,{domain}\n"
-    ip_rules = format_ip_cidr_rules(ip_list)
-    for rule in ip_rules:
-        content += f"  - {rule}\n"
-    write_file(filename, content)
-    
-    # 生成分离的临时文件用于 mrs 转换
-    base_name = filename.replace('.yaml', '')
-    # 域名规则 - YAML 格式
-    if unique_domains:
-        domain_yaml = f"{title}:\n"
-        for domain in unique_domains:
-            domain_yaml += f"  - DOMAIN-SUFFIX,{domain}\n"
-        write_file(f"{base_name}_domain.yaml", domain_yaml)
-    
-    # IP 规则 - YAML 格式
-    if ip_rules:
-        ip_yaml = f"{title}:\n"
-        for rule in ip_rules:
-            # 去掉规则类型前缀和 no-resolve 参数，只保留纯 IP/CIDR
-            clean_rule = rule.split(',')[1].strip() if ',' in rule else rule
-            ip_yaml += f"  - {clean_rule}\n"
-        write_file(f"{base_name}_ip.yaml", ip_yaml)
-
-def generate_clash_ruleset_list(domain_list, ip_list, filename, title="GFWList"):
-    unique_domains = sorted(set(domain_list))
-    ip_rules = format_ip_cidr_rules(ip_list)
-    total = len(unique_domains) + len(ip_rules)
-    content = f"# 内容：{title}\n# 数量：{total}条\n"
-    for domain in unique_domains:
-        content += f"DOMAIN-SUFFIX,{domain}\n"
-    for rule in ip_rules:
-        content += f"{rule}\n"
-    write_file(filename, content)
-    
-    # 生成分离的临时文件用于 mrs 转换
-    base_name = filename.replace('.list', '')
-    # 域名规则 - text 格式
-    if unique_domains:
-        domain_text = ""
-        for domain in unique_domains:
-            domain_text += f"DOMAIN-SUFFIX,{domain}\n"
-        write_file(f"{base_name}_domain.list", domain_text)
-    
-    # IP 规则 - text 格式
-    if ip_rules:
-        ip_text = ""
-        for rule in ip_rules:
-            # 去掉规则类型前缀和 no-resolve 参数，只保留纯 IP/CIDR
-            clean_rule = rule.split(',')[1].strip() if ',' in rule else rule
-            ip_text += f"{clean_rule}\n"
-        write_file(f"{base_name}_ip.list", ip_text)
+# ── 主流程 ──
 
 def main():
     print("Fetching GFWList...")
-    content = fetch_gfwlist()
+    content = fetch()
 
-    print("Parsing GFWList...")
-    domain_blacklist, domain_whitelist, ip_blacklist, ip_whitelist = parse_gfwlist(content)
+    print("Parsing...")
+    d_blk, d_wht, i_blk, i_wht = parse(content)
+    print(f"Domain black: {len(d_blk)} | white: {len(d_wht)} | IP black: {len(i_blk)} | IP white: {len(i_wht)}")
 
-    print(f"Domain blacklist entries: {len(domain_blacklist)}")
-    print(f"Domain whitelist entries: {len(domain_whitelist)}")
-    print(f"IP blacklist entries: {len(ip_blacklist)}")
-    print(f"IP whitelist entries: {len(ip_whitelist)}")
+    # 合并已有 UnBan
+    for fp in ('Clash/Providers/UnBan.yaml', 'Clash/Ruleset/UnBan.list'):
+        ed, ei = _read_existing(fp)
+        for d in ed:
+            if d and d not in d_wht: d_wht.append(d)
+        for ip in ei:
+            if ip and ip not in i_wht: i_wht.append(ip)
+    if ed or ei:
+        print(f"Merged existing UnBan: {len(ed)} domains, {len(ei)} IPs")
 
-    existing_unban_domains = []
-    existing_unban_ips = []
-
-    if os.path.exists('Clash/Providers/UnBan.yaml'):
-        with open('Clash/Providers/UnBan.yaml', 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith('- DOMAIN-SUFFIX,'):
-                    existing_unban_domains.append(line.replace('- DOMAIN-SUFFIX,', '', 1))
-                elif line.startswith('- IP-CIDR') or line.startswith('  - IP-CIDR'):
-                    parts = line.replace('  - ', '').split(',')
-                    if len(parts) >= 2:
-                        existing_unban_ips.append(parts[1])
-
-    if os.path.exists('Clash/Ruleset/UnBan.list'):
-        with open('Clash/Ruleset/UnBan.list', 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith('DOMAIN-SUFFIX,'):
-                    existing_unban_domains.append(line.replace('DOMAIN-SUFFIX,', '', 1))
-                elif line.startswith('IP-CIDR'):
-                    parts = line.split(',')
-                    if len(parts) >= 2:
-                        existing_unban_ips.append(parts[1])
-
-    if existing_unban_domains:
-        new_count = 0
-        for d in existing_unban_domains:
-            if d and d not in domain_whitelist:
-                domain_whitelist.append(d)
-                new_count += 1
-        if new_count > 0:
-            print(f"Merged {new_count} existing UnBan domains")
-
-    if existing_unban_ips:
-        new_count = 0
-        for ip in existing_unban_ips:
-            if ip and ip not in ip_whitelist:
-                ip_whitelist.append(ip)
-                new_count += 1
-        if new_count > 0:
-            print(f"Merged {new_count} existing UnBan IPs")
-
-    generate_acl_file(domain_blacklist, ip_blacklist, 'Acl/fullgfwlist.acl', "GFWList Blacklist")
+    # 生成文件
+    _write('Acl/fullgfwlist.acl',
+        f"# GFWList Blacklist\n# Generated from GFWList\n[proxy_list]\n# GFWList\n" +
+        '\n'.join(_fmt_acl_domains(d_blk) + _fmt_ip_acl(i_blk)) + '\n')
     print("Generated: Acl/fullgfwlist.acl")
 
-    generate_clash_provider_yaml(domain_blacklist, ip_blacklist, 'Clash/Providers/ProxyGFWlist.yaml', 'payload')
+    _write('Clash/Providers/ProxyGFWlist.yaml',
+        "payload:\n" + '\n'.join(_fmt_domain_suffix(d_blk) + _fmt_ip_cidr_clash(i_blk)) + '\n')
     print("Generated: Clash/Providers/ProxyGFWlist.yaml")
 
-    generate_clash_ruleset_list(domain_blacklist, ip_blacklist, 'Clash/Ruleset/ProxyGFWlist.list', 'GFWList 黑名单')
+    _write('Clash/Ruleset/ProxyGFWlist.list',
+        f"# GFWList Blacklist\n# {len(set(d_blk)) + len(set(i_blk))} entries\n" +
+        '\n'.join(f"DOMAIN-SUFFIX,{d}" for d in sorted(set(filter(None, d_blk)))) + '\n' +
+        '\n'.join(_fmt_ip_cidr_clash(i_blk)) + '\n')
     print("Generated: Clash/Ruleset/ProxyGFWlist.list")
 
-    generate_clash_provider_yaml(domain_whitelist, ip_whitelist, 'Clash/Providers/UnBan.yaml', 'payload')
+    _write('Clash/Providers/UnBan.yaml',
+        "payload:\n" + '\n'.join(_fmt_domain_suffix(d_wht) + _fmt_ip_cidr_clash(i_wht)) + '\n')
     print("Generated: Clash/Providers/UnBan.yaml")
 
-    generate_clash_ruleset_list(domain_whitelist, ip_whitelist, 'Clash/Ruleset/UnBan.list', 'GFWList 白名单')
+    _write('Clash/Ruleset/UnBan.list',
+        f"# GFWList Whitelist\n# {len(set(d_wht)) + len(set(i_wht))} entries\n" +
+        '\n'.join(f"DOMAIN-SUFFIX,{d}" for d in sorted(set(filter(None, d_wht)))) + '\n' +
+        '\n'.join(_fmt_ip_cidr_clash(i_wht)) + '\n')
     print("Generated: Clash/Ruleset/UnBan.list")
 
-    split_existing_rule_files()
+    split_existing_files()
+
 
 if __name__ == "__main__":
     main()
