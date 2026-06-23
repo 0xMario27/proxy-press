@@ -22,7 +22,7 @@ status:
 
 build:
 	@echo "🔨 构建..."
-	docker compose build --parallel
+	docker compose build --no-cache --parallel
 
 build-web:
 	@echo "🔨 重建前端..."
@@ -31,7 +31,7 @@ build-web:
 
 rebuild:
 	@echo "🔨 重建 & 部署..."
-	docker compose build --parallel
+	docker compose build --no-cache --parallel
 	docker compose up -d --force-recreate
 	@$(MAKE) status
 
