@@ -1,0 +1,15 @@
+app = "proxy-press"
+primary_region = "hkg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  HOST_IP = "proxy-press.fly.dev"
+
+[http_service]
+  internal_port = 25600
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
