@@ -1375,7 +1375,7 @@ p { font-size: 14px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
 
 
 /* 🪄 ticker - absolute label so text scrolls cleanly behind */
-.ticker { background: #1a1a1a; color: #d4c5a0; padding: 5px 0; margin: 4px 0; font-size: 10px; letter-spacing: 1px; overflow: hidden; font-family: "Courier New", monospace; position: relative; height: 24px; }
+.ticker { background: #1a1a1a; color: #d4c5a0; padding: 0; margin: 4px 0; font-size: 10px; letter-spacing: 1px; overflow: hidden; font-family: "Courier New", monospace; position: relative; height: 24px; line-height: 24px; }
 .ticker-label { background: #8b0000; color: #fff; padding: 4px 10px; font-weight: bold; font-size: 9px; white-space: nowrap; position: absolute; left: 0; top: 0; bottom: 0; z-index: 2; display: flex; align-items: center; }
 .ticker-text { display: block; animation: tickerScroll 26s linear infinite; white-space: nowrap; padding-left: 100px; line-height: 24px; }
 @keyframes tickerScroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
