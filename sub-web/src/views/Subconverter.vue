@@ -283,28 +283,15 @@ export default {
       const url = this.makeUrl(this.form, this.advanced, this.processedSubUrl, this.currentBackend, this.customParams, this.needUdp);
       if (!url) { this.downloading = false; this.notify('Subscription URL and client are required', 'error'); return; }
       this.customSubUrl = url;
-      // 尝试直接 fetch（本地环境或同源）
       fetch(url).then(r => { if (!r.ok) throw Error(`HTTP ${r.status}`); return r.text(); })
         .then(c => {
           if (c.includes('No nodes were found') || c.includes('Invalid request')) throw Error(c.trim());
           this._saveFile(c);
-          this.downloading = false;
         })
-        .catch(() => {
-          // 直接 fetch 失败（跨域）→ 通过 CORS 代理
-          const proxy = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-          fetch(proxy).then(r => { if (!r.ok) throw Error(`HTTP ${r.status}`); return r.text(); })
-            .then(c => {
-              if (c.includes('No nodes were found') || c.includes('Invalid request')) throw Error(c.trim());
-              this._saveFile(c);
-            })
-            .catch(() => {
-              // 代理也失败 → 打开链接让用户手动保存
-              window.open(url, '_blank');
-              this.notify('Opening in new tab — press Cmd+S to save', 'info');
-            })
-            .finally(() => { this.downloading = false; });
-        });
+        .catch(e => {
+          this.notify(`Cannot download directly: ${e.message}. Copy URL and open manually.`, 'error');
+        })
+        .finally(() => { this.downloading = false; });
     },
     _saveFile(content) {
       const b = new Blob([content], { type: 'text/plain;charset=utf-8' });
