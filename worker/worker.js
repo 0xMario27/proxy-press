@@ -156,9 +156,11 @@ function parseQuery(q) {
 }
 
 function buildNode(type, server, port, extras) {
-  const name = extras.name || extras.remarks || `${server}:${port}`;
+  const rawName = extras.name || extras.remarks || `${server}:${port}`;
   return {
-    name, server, port, type,
+    name: rawName,  // 原始名称（匹配 subconverter）
+    rawName,
+    server, port, type,
     password: extras.password || extras.uuid || extras.id || '',
     cipher: extras.cipher || extras.method || '',
     udp: extras.udp !== '0' && extras.udp !== false,
@@ -192,9 +194,9 @@ function detectRegion(name) {
 }
 
 function enhanceNodeName(node) {
-  const region = detectRegion(node.name);
-  if (region && !node.name.startsWith(region.flag)) {
-    node.name = region.flag + ' ' + node.name;
+  const region = detectRegion(node.rawName);
+  if (region && !node.rawName.startsWith(region.flag)) {
+    node.name = region.flag + ' ' + node.rawName;
   }
   node.region = region ? region.kw : null;
 }
@@ -383,24 +385,33 @@ function buildGroups(names) {
     }
   }
   
-  lines.push('  - name: 🚀 节点选择', '    type: select', '    proxies:', '      - ♻️ 自动选择');
+  // 🚀 节点选择 — 只引用组名（匹配 subconverter）
+  lines.push('  - name: 🚀 节点选择', '    type: select', '    proxies:');
+  lines.push('      - ♻️ 自动选择');
   for (const [region, flag] of regionSet) {
     lines.push(`      - ${flag} ${region}节点`);
   }
+  lines.push('      - 🚀 手动切换');
   lines.push('      - DIRECT');
   
-  lines.push('  - name: ♻️ 自动选择', '    type: url-test', '    proxies:');
-  for (const n of allNodes) lines.push(`      - ${n.name}`);
-  lines.push('    url: http://www.gstatic.com/generate_204', '    interval: 300');
+  // 🚀 手动切换 — 列出所有节点原名
+  lines.push('  - name: 🚀 手动切换', '    type: select', '    proxies:');
+  for (const n of allNodes) lines.push(`      - ${n.rawName}`);
+  lines.push('      - DIRECT');
   
-  // 区域组（内联模式只列节点名）
+  // ♻️ 自动选择 — 列出所有节点原名
+  lines.push('  - name: ♻️ 自动选择', '    type: url-test', '    proxies:');
+  for (const n of allNodes) lines.push(`      - ${n.rawName}`);
+  lines.push('    url: http://www.gstatic.com/generate_204', '    interval: 300', '    tolerance: 50');
+  
+  // 区域组 — 每个区域的节点原名
   for (const [region, flag] of regionSet) {
     const gname = `${flag} ${region}节点`;
     const regionNodes = allNodes.filter(n => n.region === region);
     if (regionNodes.length > 0) {
       lines.push(`  - name: ${gname}`, '    type: url-test', '    proxies:');
-      for (const n of regionNodes) lines.push(`      - ${n.name}`);
-      lines.push('    url: http://www.gstatic.com/generate_204', '    interval: 300');
+      for (const n of regionNodes) lines.push(`      - ${n.rawName}`);
+      lines.push('    url: http://www.gstatic.com/generate_204', '    interval: 300', '    tolerance: 50');
     }
   }
   
@@ -410,10 +421,9 @@ function buildGroups(names) {
 
 function buildGroupsWithProvider(names) {
   const lines = ['proxy-groups:'];
-  
-  // 检测所有节点的区域
-  const regionSet = new Map();
   const allNodes = globalThis._nodes || [];
+  
+  const regionSet = new Map();
   for (const n of allNodes) {
     if (n.region && !regionSet.has(n.region)) {
       const flag = REGION_MAP.find(r => r[0] === n.region)?.[1] || '';
@@ -421,36 +431,35 @@ function buildGroupsWithProvider(names) {
     }
   }
   
-  // 顶层选择器
+  // 🚀 节点选择 — 只引用组名
   lines.push('  - name: 🚀 节点选择', '    type: select', '    proxies:');
   lines.push('      - ♻️ 自动选择');
   for (const [region, flag] of regionSet) {
     lines.push(`      - ${flag} ${region}节点`);
   }
+  lines.push('      - 🚀 手动切换');
   lines.push('      - DIRECT');
 
-  // 自动测速
+  // 🚀 手动切换 — 保持内联（手动选择必须用原名）
+  lines.push('  - name: 🚀 手动切换', '    type: select', '    proxies:');
+  for (const n of allNodes) lines.push(`      - ${n.rawName}`);
+  lines.push('      - DIRECT');
+
+  // ♻️ 自动选择 — 使用 provider
   lines.push('  - name: ♻️ 自动选择', '    type: url-test',
     '    use:', '      - provider',
-    '    url: http://www.gstatic.com/generate_204', '    interval: 300');
+    '    url: http://www.gstatic.com/generate_204', '    interval: 300', '    tolerance: 50');
 
-  // 动态区域过滤组
+  // 区域过滤组 — 使用 provider + filter
   for (const [region, flag] of regionSet) {
     const gname = `${flag} ${region}节点`;
     lines.push(`  - name: ${gname}`, '    type: url-test',
       '    use:', '      - provider',
       `    filter: "${region}"`,
-      '    url: http://www.gstatic.com/generate_204', '    interval: 300');
+      '    url: http://www.gstatic.com/generate_204', '    interval: 300', '    tolerance: 50');
   }
 
-  // 功能策略组
-  const targets = ['🎯 全球直连','🛑 广告拦截','🍃 应用净化','🐟 漏网之鱼','📲 电报消息','📹 油管视频','🎥 奈飞视频','📺 哔哩哔哩','🌍 国外媒体','🌏 国内媒体','📢 谷歌FCM','Ⓜ️ 微软Bing','Ⓜ️ 微软云盘','Ⓜ️ 微软服务','🍎 苹果服务','🎶 网易音乐','💬 Ai平台','🎮 游戏平台'];
-  for (const t of targets) {
-    if (t === '🎯 全球直连') lines.push(`  - name: ${t}`, '    type: select', '    proxies:', '      - DIRECT', '      - 🚀 节点选择');
-    else if (t === '🛑 广告拦截' || t === '🍃 应用净化') lines.push(`  - name: ${t}`, '    type: select', '    proxies:', '      - REJECT', '      - DIRECT');
-    else if (t === '🐟 漏网之鱼') lines.push(`  - name: ${t}`, '    type: select', '    proxies:', '      - 🚀 节点选择', '      - DIRECT', '      - ♻️ 自动选择');
-    else lines.push(`  - name: ${t}`, '    type: select', '    proxies:', '      - 🚀 节点选择', '      - ♻️ 自动选择', '      - DIRECT');
-  }
+  addTargetGroups(lines);
   return lines;
 }
 
