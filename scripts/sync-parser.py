@@ -14,12 +14,13 @@ server = open('server.js').read()
 # 找起始: "常量" 注释块
 start = server.find('常量')
 start = server.rfind('// ═', 0, start) if '常量' in server else server.find('REGION_MAP')
-# 找结束: "订阅获取与解析" 注释块（fetchAndParseSub 由 Worker 网络层提供）
-end = server.find('订阅获取与解析')
-end = server.rfind('// ═', 0, end) if '订阅获取与解析' in server else server.find('HTTP 请求处理')
+# 找结束: "HTTP 请求处理" 注释块
+end = server.find('HTTP 请求处理')
+end = server.rfind('// ═', 0, end) if 'HTTP 请求处理' in server else len(server)
 server_core = server[start:end].strip()
-# 移除 Node.js 特定的 fetchText（Worker 网络层有自己的 fetch-based 版本）
+# 移除不应包含的部分（由 Worker 网络层提供）
 server_core = re.sub(r'function fetchText\([^)]*\).*?^\}', '', server_core, flags=re.MULTILINE | re.DOTALL)
+server_core = re.sub(r'function fetchAndParseSub\([^)]*\).*?^\}', '', server_core, flags=re.MULTILINE | re.DOTALL)
 server_core = server_core.replace('__dirname', '""')
 server_core = re.sub(r'fs\.existsSync\([^)]+\)', 'false', server_core)
 server_core = re.sub(r'fs\.readFileSync\([^)]+\)', '""', server_core)
