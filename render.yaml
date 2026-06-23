@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: proxy-press
+    env: docker
+    dockerfilePath: ./smart/Dockerfile
+    plan: free
+    envVars:
+      - key: HOST_IP
+        value: proxy-press.onrender.com
