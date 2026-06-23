@@ -13,6 +13,7 @@
       <h1 class="name">THE DAILY CONVERTER</h1>
       <div class="masthead-rule masthead-rule-thick"></div>
       <div class="motto">All the News That Fits Your Proxy — Est. 2026</div>
+      <div class="ticker"><span class="ticker-label">LATE EDITION</span> <span class="ticker-text">✦ GIC announces universal proxy standards ✦ Markets surge 2.3% ✦ anyTLS validated by MIT ✦ Stash 3.0 released ✦ ACL4SSR hits 2M users ✦ Owl post delivery now available ✦</span></div>
       <div class="masthead-rule"></div>
     </div>
 
@@ -571,5 +572,19 @@ p { font-size: 12px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
 .photo-caption { display: block; font-size: 7px; font-style: italic; text-align: center; color: #888; margin-top: 2px; }
 .headline { animation: glowPulse 5s ease-in-out infinite; }
 @keyframes glowPulse { 0%,100% { text-shadow: 0 0 0 transparent; } 30% { text-shadow: 0 0 6px rgba(180,150,60,0.2); } }
+
+
+/* 🪄 魔法增强 */
+.ticker { background: #1a1a1a; color: #d4c5a0; padding: 4px 0; margin: 4px 0; font-size: 9px; letter-spacing: 1px; overflow: hidden; white-space: nowrap; font-family: "Courier New", monospace; }
+.ticker-label { background: #8b0000; color: #fff; padding: 2px 8px; margin-right: 10px; font-weight: bold; font-size: 8px; }
+.ticker-text { animation: tickerScroll 30s linear infinite; display: inline-block; }
+@keyframes tickerScroll { from { transform: translateX(100%); } to { transform: translateX(-100%); } }
+@media (prefers-reduced-motion) { .ticker-text { animation: none; } }
+.mini-ad { border: 1px dashed #999; padding: 8px; text-align: center; font-size: 11px; background: #fdf8ef; margin: 8px 0; }
+.mini-ad strong { font-size: 13px; letter-spacing: 1px; }
+.ad-stars { font-size: 16px; color: #c4a050; margin-bottom: 2px; letter-spacing: 8px; }
+.columns-4 { display: flex; gap: 10px; }
+.columns-4 .col { flex: 1; min-width: 0; }
+@media (max-width: 700px) { .columns-4 { flex-direction: column; } }
 
 </style>
