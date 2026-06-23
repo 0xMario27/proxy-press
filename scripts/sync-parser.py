@@ -23,6 +23,8 @@ import re
 server_core = server_core.replace('__dirname', '""')
 server_core = re.sub(r'fs\.existsSync\([^)]+\)', 'false', server_core)
 server_core = re.sub(r'fs\.readFileSync\([^)]+\)', '""', server_core)
+server_core = server_core.replace('process.env.PORT', '25600')
+server_core = server_core.replace('process.env.HOST_IP', '"localhost"')
 # 添加 path polyfill 到 worker
 path_polyfill = "const path = { join: (...args) => args.join('/'), basename: (s) => s.split('/').pop() };"
 

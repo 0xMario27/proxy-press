@@ -970,8 +970,8 @@ const path = { join: (...args) => args.join('/'), basename: (s) => s.split('/').
 const RULE_STORE = new Map();  // hash → YAML 内容
 const BASE_RULES_URL = 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/';
 const CONFIG_DIR = path.join("", 'Clash', 'config');
-const PORT = parseInt(process.env.PORT || '25600');
-const HOST_IP = process.env.HOST_IP || 'localhost';
+const PORT = parseInt(25600 || '25600');
+const HOST_IP = "localhost" || 'localhost';
 
 // 区域识别
 const REGION_MAP = [
