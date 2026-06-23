@@ -306,7 +306,19 @@ async function fetchRules() {
             for (const line of t.split('\n')) {
               const s = line.trim();
               if (!s || s.startsWith('#')) continue;
-              rules.push({ group, line: s });
+              // 如果规则不带 target group，补上 ruleset 的组名
+              const parts = s.split(',');
+              const last = parts[parts.length - 1].trim();
+              // no-resolve 是选项不是组名，也需要补
+              if (last === 'no-resolve' || last === 'src' || last === 'dst' || !last) {
+                rules.push({ group, line: s + ',' + group });
+              } else if (parts.length >= 3) {
+                // 已有组名（如 DOMAIN-SUFFIX,domain,组名）
+                rules.push({ group, line: s });
+              } else {
+                // 缺组名，补上
+                rules.push({ group, line: s + ',' + group });
+              }
             }
           }).catch(() => {})
       );
