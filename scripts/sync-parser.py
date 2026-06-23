@@ -9,10 +9,17 @@ p = re.sub(r'\nmodule\.exports\s*=\s*\{[^}]+\};', '', p, flags=re.DOTALL)
 p = p.replace("return Buffer.from(str, 'base64').toString('utf-8');", "return atob(str);")
 p = p.replace("Buffer.from(str.replace(/\\s/g, ''), 'base64').toString('utf-8')", "atob(str.replace(/\\s/g, ''))")
 
-# 2. 读取 server.js 的核心构建逻辑（去掉 Node.js 部分）
+# 2. 读取 server.js 的核心构建逻辑（去掉 Node.js HTTP 部分）
 s = open('server.js').read()
-# 提取从 "常量" 到 "启动" 之间的逻辑
-s = s[s.find('// ═══════════════════════════════════  常量'):s.find('// ═══════════════════════════════════  HTTP 请求处理')]
+# 找到 "常量" 区段（可能有不同格式的注释线）
+start = s.find('常量')
+if start < 0: start = s.find('REGION_MAP')
+start = s.rfind('// ═', 0, start) if s.rfind('// ═', 0, start) > 0 else 0
+# 找到 "HTTP 请求处理" 区段之前
+end = s.find('HTTP 请求处理')
+if end < 0: end = s.find('启动')
+end = s.rfind('// ═', 0, end) if s.rfind('// ═', 0, end) > 0 else len(s)
+s = s[start:end]
 
 # 3. 构建 Worker：parser + 适配后的 server 逻辑 + Worker 网络层
 worker = f"""/**
