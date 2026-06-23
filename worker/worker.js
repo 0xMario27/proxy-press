@@ -239,16 +239,24 @@ function buildGroups(names) {
 
 function buildGroupsWithProvider(names) {
   const lines = ['proxy-groups:'];
+  
+  // 顶层选择器 — 只引用其他组名，不引用节点
   lines.push('  - name: 🚀 节点选择', '    type: select', '    proxies:');
   lines.push('      - ♻️ 自动选择');
-  for (const n of names) lines.push(`      - ${n}`);
+  lines.push('      - 🇭🇰 香港节点');
+  lines.push('      - 🇨🇳 台湾节点');
+  lines.push('      - 🇯🇵 日本节点');
+  lines.push('      - 🇺🇲 美国节点');
+  lines.push('      - 🇸🇬 狮城节点');
+  lines.push('      - 🇰🇷 韩国节点');
   lines.push('      - DIRECT');
 
+  // 自动测速 — 使用 provider 全部节点
   lines.push('  - name: ♻️ 自动选择', '    type: url-test');
   lines.push('    use:', '      - provider');
   lines.push('    url: http://www.gstatic.com/generate_204', '    interval: 300');
 
-  // 区域过滤组
+  // 区域过滤组 — 使用 provider + filter
   const regions = { '🇭🇰 香港节点': '香港', '🇨🇳 台湾节点': '台湾', '🇯🇵 日本节点': '日本', '🇺🇲 美国节点': '美国', '🇸🇬 狮城节点': '新加坡', '🇰🇷 韩国节点': '韩国' };
   for (const [name, filter] of Object.entries(regions)) {
     lines.push(`  - name: ${name}`, '    type: url-test');
@@ -257,7 +265,8 @@ function buildGroupsWithProvider(names) {
     lines.push('    url: http://www.gstatic.com/generate_204', '    interval: 300');
   }
 
-  const targets = [...new Set(['🎯 全球直连','🛑 广告拦截','🍃 应用净化','🐟 漏网之鱼','📲 电报消息','📹 油管视频','🎥 奈飞视频','📺 哔哩哔哩','🌍 国外媒体','🌏 国内媒体','📢 谷歌FCM','Ⓜ️ 微软Bing','Ⓜ️ 微软云盘','Ⓜ️ 微软服务','🍎 苹果服务','🎶 网易音乐','💬 Ai平台','🎮 游戏平台'])];
+  // 功能策略组
+  const targets = ['🎯 全球直连','🛑 广告拦截','🍃 应用净化','🐟 漏网之鱼','📲 电报消息','📹 油管视频','🎥 奈飞视频','📺 哔哩哔哩','🌍 国外媒体','🌏 国内媒体','📢 谷歌FCM','Ⓜ️ 微软Bing','Ⓜ️ 微软云盘','Ⓜ️ 微软服务','🍎 苹果服务','🎶 网易音乐','💬 Ai平台','🎮 游戏平台'];
   for (const t of targets) {
     if (t === '🎯 全球直连') {
       lines.push(`  - name: ${t}`, '    type: select', '    proxies:', '      - DIRECT', '      - 🚀 节点选择');
