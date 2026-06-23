@@ -1,13 +1,4 @@
 /**
- * ProxyPress Worker v5 — 使用本地 sub-converter-parser.js
- * parser 与本地完全一致，Worker 只负责网络 + 构架
- */
-
-// ═══════════════════════════════════════════════════════════
-//  Parser（来自 sub-converter-parser.js，与本地一致）
-// ═══════════════════════════════════════════════════════════
-
-/**
  * sub-converter-parser.js
  * 
  * JS 版订阅链接解析器 —— 对标 C++ subconverter 的 subparser.cpp
@@ -18,6 +9,8 @@
  *   socks:// | http:// | https:// | clash YAML | surge conf
  */
 
+'use strict';
+
 // ═══════════════════════════════════════════════════════════
 //  工具函数
 // ═══════════════════════════════════════════════════════════
@@ -27,7 +20,7 @@ function urlSafeBase64Decode(str) {
   str = str.replace(/-/g, '+').replace(/_/g, '/');
   while (str.length % 4) str += '=';
   try {
-    return atob(str);
+    return Buffer.from(str, 'base64').toString('utf-8');
   } catch {
     return str;
   }
@@ -954,193 +947,16 @@ function parseSurgeLike(content) {
   return nodes;
 }
 
-
-
-// ═══════════════════════════════════════════════════════════
-//  网络 & 构架
-// ═══════════════════════════════════════════════════════════
-
-const REGION_MAP = [
-  ['香港','🇭🇰'],['台湾','🇨🇳'],['日本','🇯🇵'],['美国','🇺🇸'],['韩国','🇰🇷'],['新加坡','🇸🇬'],
-  ['英国','🇬🇧'],['德国','🇩🇪'],['印度','🇮🇳'],['越南','🇻🇳'],['泰国','🇹🇭'],['菲律宾','🇵🇭'],
-  ['加拿大','🇨🇦'],['澳大利亚','🇦🇺'],['澳门','🇲🇴'],['马来西亚','🇲🇾'],['俄罗斯','🇷🇺'],
-  ['土耳其','🇹🇷'],['印度尼西亚','🇮🇩'],['巴西','🇧🇷'],['阿根廷','🇦🇷'],['法国','🇫🇷'],['意大利','🇮🇹'],
-];
-
-const RULE_STORE = new Map();
-const BASE = 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/';
-const RULESETS = {
-  '🎯 全球直连': ['LocalAreaNetwork.list','UnBan.list','GoogleCN.list','ChinaDomain.list','ChinaCompanyIp.list','Download.list'],
-  '🛑 广告拦截': ['BanAD.list'], '🍃 应用净化': ['BanProgramAD.list'],
-  '📢 谷歌FCM': ['Ruleset/GoogleFCM.list'], 'Ⓜ️ 微软Bing': ['Bing.list'],
-  'Ⓜ️ 微软云盘': ['OneDrive.list'], 'Ⓜ️ 微软服务': ['Microsoft.list'],
-  '🍎 苹果服务': ['Apple.list'], '📲 电报消息': ['Telegram.list'],
-  '📹 油管视频': ['Ruleset/YouTube.list'], '🎥 奈飞视频': ['Ruleset/Netflix.list'],
-  '📺 哔哩哔哩': ['Ruleset/Bilibili.list','Ruleset/BilibiliHMT.list'],
-  '🌍 国外媒体': ['ProxyMedia.list'], '🌏 国内媒体': ['ChinaMedia.list'],
-  '🎶 网易音乐': ['Ruleset/NetEaseMusic.list'],
-  '💬 Ai平台': ['Ruleset/AI.list','Ruleset/OpenAi.list'],
-  '🎮 游戏平台': ['Ruleset/Steam.list','Ruleset/Epic.list','Ruleset/Sony.list','Ruleset/Nintendo.list'],
+module.exports = {
+  parseNode: parseNode,
+  parseSubscription: parseSubscription,
+  parseSS: parseSS, parseSSR: parseSSR, parseVMess: parseVMess,
+  parseTrojan: parseTrojan, parseVLESS: parseVLESS,
+  parseHysteria: parseHysteria, parseHysteria2: parseHysteria2,
+  parseTUIC: parseTUIC, parseAnyTLS: parseAnyTLS,
+  parseSOCKS: parseSOCKS, parseHTTP: parseHTTP,
+  parseClashYAML: parseClashYAML, parseSurgeConf: parseSurgeConf,
+  parseSSD: parseSSD, parseSingboxOutbounds: parseSingboxOutbounds,
+  urlSafeBase64Decode: urlSafeBase64Decode,
+  getUrlArg: getUrlArg
 };
-
-function detectRegion(name) {
-  for (const [kw, flag] of REGION_MAP) { if (name.includes(kw)) return { kw, flag }; }
-  return null;
-}
-
-async function fetchNodes(subUrl) {
-  const resp = await fetch(subUrl, { headers: { 'User-Agent': 'ProxyPress/5.0', 'Accept': '*/*' } });
-  let body = await resp.text();
-  // 使用用户的 parser 解析
-  const nodes = parseSubscription(body);
-  // 增强节点（区域检测，但不改 name）
-  for (const n of nodes) {
-    const region = detectRegion(n.name);
-    n.region = region ? region.kw : null;
-    n.flag = region ? region.flag : null;
-  }
-  return nodes;
-}
-
-async function fetchRules() {
-  const rules = [];
-  const ps = [];
-  for (const [group, files] of Object.entries(RULESETS)) {
-    for (const f of files) {
-      ps.push(fetch(BASE + f, { headers: { 'User-Agent': 'ProxyPress/5.0' } })
-        .then(r => r.text()).then(t => {
-          for (const line of t.split('\n')) {
-            const s = line.trim();
-            if (!s || s.startsWith('#')) continue;
-            const parts = s.split(',');
-            const last = parts[parts.length - 1].trim();
-            if (last === 'no-resolve' || last === 'src' || last === 'dst' || !last || parts.length < 3)
-              rules.push({ group, line: s + ',' + group });
-            else rules.push({ group, line: s });
-          }
-        }).catch(() => {}));
-    }
-  }
-  await Promise.all(ps);
-  rules.push({ group: '🎯 全球直连', line: 'GEOIP,CN,🎯 全球直连' });
-  rules.push({ group: '🐟 漏网之鱼', line: 'MATCH,🐟 漏网之鱼' });
-  return rules;
-}
-
-export default {
-  async fetch(request) {
-    const u = new URL(request.url);
-    const p = u.pathname;
-    if (p === '/health') return new Response('OK');
-    
-    if (p === '/sub') {
-      const rawUrl = u.searchParams.get('url');
-      const mode = u.searchParams.get('mode') || 'inline';
-      if (!rawUrl) return new Response('Missing url', { status: 400 });
-      try {
-        const nodes = await fetchNodes(decodeURIComponent(rawUrl));
-        if (!nodes.length) return new Response('No nodes', { status: 400 });
-        globalThis._nodes = nodes;
-        const rules = await fetchRules();
-        const r = mode === 'provider' ? buildProvider(nodes, rules, u.origin, rawUrl) : buildInline(nodes, rules);
-        return new Response(r, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=300' } });
-      } catch(e) { return new Response('Error: ' + e.message, { status: 502 }); }
-    }
-    
-    if (p === '/list') {
-      const rawUrl = u.searchParams.get('url');
-      if (!rawUrl) return new Response('Missing url', { status: 400 });
-      const nodes = await fetchNodes(decodeURIComponent(rawUrl));
-      const y = ['proxies:'];
-      for (const n of nodes) y.push(`  - {name: ${JSON.stringify(n.name)}, server: ${n.server}, port: ${n.port}, type: ${n.type}, password: ${JSON.stringify(n.password || '')}, cipher: ${JSON.stringify(n.cipher || '')}, udp: ${!!n.udp}, fingerprint: ${n.fingerprint || 'chrome'}, sni: ${n.sni || n.server}, skip-cert-verify: ${!!n['skip-cert-verify']}}`);
-      return respond(y.join('\n'), 300);
-    }
-    
-    if (p.startsWith('/rules/')) {
-      const h = p.split('/rules/')[1].replace('.yaml','');
-      return RULE_STORE.has(h) ? respond(RULE_STORE.get(h), 86400) : new Response('Not found', { status: 404 });
-    }
-    
-    return new Response('ProxyPress v5', { status: 404 });
-  }
-};
-
-function respond(body, max) { return new Response(body, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=' + max } }); }
-
-function buildInline(nodes, rules) {
-  const lines = ['port: 7890','socks-port: 7891','allow-lan: true','mode: Rule','log-level: info','','proxies:'];
-  for (const n of nodes) lines.push(`  - {name: ${JSON.stringify(n.name)}, server: ${n.server}, port: ${n.port}, type: ${n.type}, password: ${JSON.stringify(n.password || '')}, cipher: ${JSON.stringify(n.cipher || '')}, udp: ${!!n.udp}, fingerprint: ${n.fingerprint || 'chrome'}, sni: ${n.sni || n.server}, skip-cert-verify: ${!!n['skip-cert-verify']}}`);
-  lines.push(...mgroups(nodes), ...mrules(rules));
-  return lines.join('\n');
-}
-
-function buildProvider(nodes, rules, host, rawUrl) {
-  const lines = ['port: 7890','socks-port: 7891','allow-lan: true','mode: Rule','log-level: info','',
-    'proxy-providers:','  provider:','    type: http','    path: ./proxy-providers/provider.yaml',
-    `    url: ${host}/list?url=${encodeURIComponent(decodeURIComponent(rawUrl))}`,
-    '    interval: 86400','    health-check:','      enable: true','      url: http://www.gstatic.com/generate_204','      interval: 300','',
-    'rule-providers:'];
-  const rgs = {};
-  for (const r of rules) { if (!rgs[r.group]) rgs[r.group] = []; rgs[r.group].push(r.line); }
-  const refs = [];
-  for (const [g, ls] of Object.entries(rgs)) {
-    const c = ls.join('\n'), h = simpleHash(c), n = g.replace(/[^\w\u4e00-\u9fff]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'')||'o';
-    RULE_STORE.set(h, c);
-    lines.push(`  ${n}:`, '    type: http', '    behavior: classical', `    path: ./rulesets/${n}.yaml`, `    url: ${host}/rules/${h}.yaml`, '    interval: 86400');
-    refs.push(`  - RULE-SET,${n},${g}`);
-  }
-  lines.push('', ...pgroups(nodes), '', 'rules:', ...refs);
-  return lines.join('\n');
-}
-
-function mgroups(nodes) {
-  const ls = ['','proxy-groups:'], rs = new Map();
-  for (const n of nodes) { if (n.region && !rs.has(n.region)) rs.set(n.region, n.flag || ''); }
-  ls.push('  - name: 🚀 节点选择','    type: select','    proxies:','      - ♻️ 自动选择');
-  for (const [r,f] of rs) ls.push(`      - ${f} ${r}节点`);
-  ls.push('      - 🚀 手动切换','      - DIRECT');
-  ls.push('  - name: 🚀 手动切换','    type: select','    proxies:');
-  for (const n of nodes) ls.push(`      - ${n.name}`);
-  ls.push('      - DIRECT');
-  ls.push('  - name: ♻️ 自动选择','    type: url-test','    proxies:');
-  for (const n of nodes) ls.push(`      - ${n.name}`);
-  ls.push('    url: http://www.gstatic.com/generate_204','    interval: 300','    tolerance: 50');
-  for (const [r,f] of rs) {
-    const rn = nodes.filter(n => n.region === r);
-    if (rn.length) {
-      ls.push(`  - name: ${f} ${r}节点`,'    type: url-test','    proxies:');
-      for (const n of rn) ls.push(`      - ${n.name}`);
-      ls.push('    url: http://www.gstatic.com/generate_204','    interval: 300','    tolerance: 50');
-    }
-  }
-  atargets(ls); return ls;
-}
-
-function pgroups(nodes) {
-  const ls = ['proxy-groups:'], rs = new Map();
-  for (const n of nodes) { if (n.region && !rs.has(n.region)) rs.set(n.region, n.flag || ''); }
-  ls.push('  - name: 🚀 节点选择','    type: select','    proxies:','      - ♻️ 自动选择');
-  for (const [r,f] of rs) ls.push(`      - ${f} ${r}节点`);
-  ls.push('      - 🚀 手动切换','      - DIRECT');
-  ls.push('  - name: 🚀 手动切换','    type: select','    proxies:');
-  for (const n of nodes) ls.push(`      - ${n.name}`);
-  ls.push('      - DIRECT');
-  ls.push('  - name: ♻️ 自动选择','    type: url-test','    use:','      - provider','    url: http://www.gstatic.com/generate_204','    interval: 300','    tolerance: 50');
-  for (const [r,f] of rs) {
-    ls.push(`  - name: ${f} ${r}节点`,'    type: url-test','    use:','      - provider',`    filter: "${r}"`,'    url: http://www.gstatic.com/generate_204','    interval: 300','    tolerance: 50');
-  }
-  atargets(ls); return ls;
-}
-
-function atargets(ls) {
-  const ts = ['🎯 全球直连','🛑 广告拦截','🍃 应用净化','🐟 漏网之鱼','📲 电报消息','📹 油管视频','🎥 奈飞视频','📺 哔哩哔哩','🌍 国外媒体','🌏 国内媒体','📢 谷歌FCM','Ⓜ️ 微软Bing','Ⓜ️ 微软云盘','Ⓜ️ 微软服务','🍎 苹果服务','🎶 网易音乐','💬 Ai平台','🎮 游戏平台'];
-  for (const t of ts) {
-    if (t === '🎯 全球直连') ls.push(`  - name: ${t}`,'    type: select','    proxies:','      - DIRECT','      - 🚀 节点选择');
-    else if (t === '🛑 广告拦截' || t === '🍃 应用净化') ls.push(`  - name: ${t}`,'    type: select','    proxies:','      - REJECT','      - DIRECT');
-    else if (t === '🐟 漏网之鱼') ls.push(`  - name: ${t}`,'    type: select','    proxies:','      - 🚀 节点选择','      - DIRECT','      - ♻️ 自动选择');
-    else ls.push(`  - name: ${t}`,'    type: select','    proxies:','      - 🚀 节点选择','      - ♻️ 自动选择','      - DIRECT');
-  }
-}
-
-function mrules(rules) { const ls = ['','rules:']; for (const r of rules) ls.push(`  - ${r.line}`); return ls; }
-function simpleHash(s) { let h=0; for(let i=0;i<s.length;i++){ h=((h<<5)-h)+s.charCodeAt(i); h|=0; } return Math.abs(h).toString(16).padStart(8,'0').slice(0,8); }

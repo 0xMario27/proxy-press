@@ -39,7 +39,7 @@ restart-web:
 	docker compose up -d --force-recreate sub-web
 
 restart-backend:
-	docker compose up -d --force-recreate subconverter sub-smart
+	docker compose up -d --force-recreate sub-smart-js
 
 logs:
 	docker compose logs -f --tail=50
@@ -47,20 +47,17 @@ logs:
 logs-web:
 	docker logs -f --tail=50 sub-web
 
-logs-converter:
-	docker logs -f --tail=50 subconverter
-
-logs-smart:
-	docker logs -f --tail=50 sub-smart
+logs-backend:
+	docker logs -f --tail=50 sub-smart-js
 
 clean:
 	docker compose down -v
 
 clean-all: clean
-	docker rmi sub-web-local:latest sub-smart-local:latest 2>/dev/null; true
+	docker rmi sub-web-local:latest 2>/dev/null; true
 
 help:
 	@echo "make up / down / restart / status / logs"
 	@echo "make build / rebuild / build-web / restart-web / restart-backend"
-	@echo "make logs-web / logs-converter / logs-smart"
+	@echo "make logs-web / logs-backend"
 	@echo "make clean / clean-all"

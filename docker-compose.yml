@@ -1,28 +1,17 @@
 services:
-  # ========== 订阅转换引擎 ==========
-  subconverter:
-    image: asdlokj1qpi23/subconverter:latest
-    container_name: subconverter
-    restart: unless-stopped
-    ports:
-      - "25500:25500"
-    volumes:
-      - ./Clash:/base/Clash
-      - ./Acl:/base/Acl
-      - ./Tool:/base/Tool
-
-  # ========== 统一后端：订阅代理 + proxy-provider 转换 ==========
-  sub-smart:
-    build: ./smart
-    image: sub-smart-local:latest
-    container_name: sub-smart
+  # ========== 纯 JS 订阅转换引擎（替代 subconverter + sub-smart）==========
+  sub-smart-js:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sub-smart-js
     restart: unless-stopped
     ports:
       - "25600:25600"
     environment:
       - HOST_IP=${HOST_IP:-localhost}
-    depends_on:
-      - subconverter
+    volumes:
+      - ./Clash:/app/Clash
 
   # ========== 前端 ==========
   sub-web:
