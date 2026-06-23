@@ -303,4 +303,3 @@ function respond(body, maxAge) {
   });
 }
 
-function respond(body, maxAge) {
