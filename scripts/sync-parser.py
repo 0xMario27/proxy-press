@@ -19,8 +19,10 @@ end = server.find('HTTP 请求处理')
 end = server.rfind('// ═', 0, end) if 'HTTP 请求处理' in server else len(server)
 server_core = server[start:end].strip()
 # 移除不应包含的部分（由 Worker 网络层提供）
-server_core = re.sub(r'function fetchText\([^)]*\).*?^\}', '', server_core, flags=re.MULTILINE | re.DOTALL)
-server_core = re.sub(r'function fetchAndParseSub\([^)]*\).*?^\}', '', server_core, flags=re.MULTILINE | re.DOTALL)
+server_core = re.sub(r'(async\s+)?function fetchText\([^)]*\).*?^\}', '', server_core, flags=re.MULTILINE | re.DOTALL)
+server_core = re.sub(r'(async\s+)?function fetchAndParseSub\([^)]*\).*?^\}', '', server_core, flags=re.MULTILINE | re.DOTALL)
+# 清理 dangling async/function 关键字
+server_core = re.sub(r'^async\s*$', '', server_core, flags=re.MULTILINE)
 server_core = server_core.replace('__dirname', '""')
 server_core = re.sub(r'fs\.existsSync\([^)]+\)', 'false', server_core)
 server_core = re.sub(r'fs\.readFileSync\([^)]+\)', '""', server_core)
