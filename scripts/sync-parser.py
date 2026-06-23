@@ -14,9 +14,9 @@ server = open('server.js').read()
 # 找起始: "常量" 注释块
 start = server.find('常量')
 start = server.rfind('// ═', 0, start) if '常量' in server else server.find('REGION_MAP')
-# 找结束: "HTTP 请求处理" 注释块
-end = server.find('HTTP 请求处理')
-end = server.rfind('// ═', 0, end) if 'HTTP 请求处理' in server else server.find('启动')
+# 找结束: "订阅获取与解析" 注释块（fetchAndParseSub 由 Worker 网络层提供）
+end = server.find('订阅获取与解析')
+end = server.rfind('// ═', 0, end) if '订阅获取与解析' in server else server.find('HTTP 请求处理')
 server_core = server[start:end].strip()
 
 # 3. 构建 Worker（无重复函数）
@@ -104,6 +104,15 @@ export default {{
 }};
 
 async function fetchAndParseSub(subUrl) {{
+  if (!/^https?:\\/\\//.test(subUrl)) {{
+    let body = decodeURIComponent(subUrl);
+    if (isBase64(body) && !body.includes('://')) {{ const d = base64Decode(body); if (d.includes('://') || d.includes(' = ')) body = d; }}
+    return parseSubscription(body);
+  }}
+  let body = await fetchText(subUrl);
+  if (isBase64(body) && !body.includes('://')) {{ const d = base64Decode(body); if (d.includes('://')) body = d; }}
+  return parseSubscription(body);
+}}
 """
 
 open('worker/worker.js', 'w').write(worker)
