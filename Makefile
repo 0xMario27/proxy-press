@@ -56,6 +56,10 @@ clean:
 clean-all: clean
 	docker rmi sub-web-local:latest 2>/dev/null; true
 
+sync:
+	@python3 scripts/sync-parser.py
+	@node --check worker/worker.js && echo '✅ Syntax OK'
+
 help:
 	@echo "make up / down / restart / status / logs"
 	@echo "make build / rebuild / build-web / restart-web / restart-backend"
