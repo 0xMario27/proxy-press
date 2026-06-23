@@ -283,15 +283,24 @@ export default {
       const url = this.makeUrl(this.form, this.advanced, this.processedSubUrl, this.currentBackend, this.customParams, this.needUdp);
       if (!url) { this.downloading = false; this.notify('Subscription URL and client are required', 'error'); return; }
       this.customSubUrl = url;
+      // 尝试 fetch（本地/CORS 支持时直接下载）
       fetch(url).then(r => { if (!r.ok) throw Error(`HTTP ${r.status}`); return r.text(); })
         .then(c => {
-          const b = new Blob([c], { type: 'text/plain;charset=utf-8' });
-          const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = this.downloadFileName;
-          document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
-          this.notify(`Downloaded: ${this.downloadFileName}`, 'success');
+          if (c.includes('No nodes were found') || c.includes('Invalid request')) throw Error(c.trim());
+          this._saveFile(c);
         })
-        .catch(e => this.notify(`Download failed: ${e.message}`, 'error'))
+        .catch(() => {
+          // fetch 失败（跨域等）→ 在新标签页打开，浏览器自动下载
+          this.notify('Opening in new tab for download...', 'info');
+          window.open(url, '_blank');
+        })
         .finally(() => { this.downloading = false; });
+    },
+    _saveFile(content) {
+      const b = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = this.downloadFileName;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+      this.notify(`Downloaded: ${this.downloadFileName}`, 'success');
     },
     handleConfigUpload(configContent) { this.uploadConfig = configContent; this.confirmUploadConfig(); },
     confirmUploadConfig() { this.notify('Upload not configured', 'info'); this.dialogUploadConfigVisible = false; },
