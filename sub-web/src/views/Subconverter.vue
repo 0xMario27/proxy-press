@@ -240,7 +240,11 @@ export default {
     currentBackend() {
       if (this.form.customBackend) return this.form.customBackend;
       const base = CONSTANTS.DEFAULT_BACKEND.replace('/sub?', '').replace(/:\d+$/, '');
-      return `${base}:25600/sub?mode=${this.providerMode ? 'provider' : 'inline'}&`;
+      // 本地后端 → 加端口和 mode 参数；远程后端 → 直接用
+      if (base.includes('localhost') || base.includes('127.0.0.1')) {
+        return `${base}:25600/sub?mode=${this.providerMode ? 'provider' : 'inline'}&`;
+      }
+      return CONSTANTS.DEFAULT_BACKEND;
     }
   },
   created() {
