@@ -464,7 +464,7 @@ function buildGroupsWithProvider(nodes) {
       '    url: http://www.gstatic.com/generate_204', '    interval: 300', '    tolerance: 50');
   }
 
-  addTargetGroups(lines);
+  addTargetGroups(lines, regionSet);
   return lines;
 }
 
@@ -503,11 +503,17 @@ function buildGroupsInline(nodes) {
     }
   }
 
-  addTargetGroups(lines);
+  addTargetGroups(lines, regionSet);
   return lines;
 }
 
-function addTargetGroups(lines) {
+function addTargetGroups(lines, regionSet) {
+  // 把 regionSet 转成有序的组名列表
+  const regionGroupNames = [];
+  for (const [region, flag] of regionSet) {
+    regionGroupNames.push(`${flag} ${region}节点`);
+  }
+
   const groups = [
     '🎯 全球直连', '🛑 广告拦截', '🍃 应用净化', '🐟 漏网之鱼',
     '📲 电报消息', '📹 油管视频', '🎥 奈飞视频', '📺 哔哩哔哩',
@@ -516,14 +522,18 @@ function addTargetGroups(lines) {
     '🍎 苹果服务', '🎶 网易音乐', '💬 Ai平台', '🎮 游戏平台'
   ];
   for (const t of groups) {
-    if (t === '🎯 全球直连')
+    if (t === '🎯 全球直连') {
       lines.push(`  - name: ${t}`, '    type: select', '    proxies:', '      - DIRECT', '      - 🚀 节点选择');
-    else if (t === '🛑 广告拦截' || t === '🍃 应用净化')
+    } else if (t === '🛑 广告拦截' || t === '🍃 应用净化') {
       lines.push(`  - name: ${t}`, '    type: select', '    proxies:', '      - REJECT', '      - DIRECT');
-    else if (t === '🐟 漏网之鱼')
-      lines.push(`  - name: ${t}`, '    type: select', '    proxies:', '      - 🚀 节点选择', '      - DIRECT', '      - ♻️ 自动选择');
-    else
-      lines.push(`  - name: ${t}`, '    type: select', '    proxies:', '      - 🚀 节点选择', '      - ♻️ 自动选择', '      - DIRECT');
+    } else {
+      // 其他组: 节点选择 + 自动选择 + 各地区组 + DIRECT
+      lines.push(`  - name: ${t}`, '    type: select', '    proxies:');
+      lines.push('      - 🚀 节点选择');
+      lines.push('      - ♻️ 自动选择');
+      for (const gn of regionGroupNames) lines.push(`      - ${gn}`);
+      lines.push('      - DIRECT');
+    }
   }
 }
 
