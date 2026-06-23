@@ -43,14 +43,13 @@ jobs:
         run: |
           cp sub-web/src/views/Subconverter.vue /tmp/sub-web-src/src/views/Subconverter.vue
           cp sub-web/src/config/remote-configs.js /tmp/sub-web-src/src/config/remote-configs.js
-          cp sub-web/vite.config.js /tmp/sub-web-src/vite.config.js
           cp sub-web/.env.gh-pages /tmp/sub-web-src/.env.production
 
       - name: Install & Build
         working-directory: /tmp/sub-web-src
         run: |
           npm install --legacy-peer-deps
-          npm run build
+          npx vite build --base=/proxy-press/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
