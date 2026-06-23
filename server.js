@@ -266,32 +266,60 @@ function sanitize(s) {
   return s.replace(/[^\w\u4e00-\u9fff]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') || 'other';
 }
 
+// 紧凑 flow-style（/list provider 用，Clash 核心解析器兼容）
+function formatNodeCompact(n) {
+  const f = [];
+  f.push(`name: ${JSON.stringify(n.rawName)}`);
+  f.push(`type: ${n.type}`);
+  f.push(`server: ${n.server}`);
+  f.push(`port: ${n.port}`);
+  const pwd = n.password || n.uuid || '';
+  if (pwd) f.push(`password: ${JSON.stringify(pwd)}`);
+  if (n.cipher && n.cipher !== 'auto') f.push(`cipher: ${JSON.stringify(n.cipher)}`);
+  if (n.udp) f.push('udp: true');
+  if (n['skip-cert-verify']) f.push('skip-cert-verify: true');
+  const sn = n.sni || n.servername || '';
+  if (sn && sn !== n.server) f.push(`servername: ${JSON.stringify(sn)}`);
+  if (n.tls && n.tls !== 'none') {
+    f.push('tls: true');
+    if (n.alpn && n.alpn.length) f.push(`alpn: [${n.alpn}]`);
+  }
+  if (n.network && n.network !== 'tcp') {
+    f.push(`network: ${n.network}`);
+    if (n.host) f.push(`host: ${JSON.stringify(n.host)}`);
+    if (n.path && n.path !== '/') f.push(`path: ${JSON.stringify(n.path)}`);
+  }
+  if (n.fingerprint && n.fingerprint !== 'chrome') f.push(`client-fingerprint: ${JSON.stringify(n.fingerprint)}`);
+  return `  - {${f.join(', ')}}`;
+}
+
+// block-style YAML（主配置 inline 模式用，Stash 兼容）
 function formatNodeBlockYaml(n) {
   const lines = [];
   lines.push(`  - name: ${JSON.stringify(n.rawName)}`);
   lines.push(`    type: ${n.type}`);
   lines.push(`    server: ${n.server}`);
   lines.push(`    port: ${n.port}`);
-  // 密码: 优先用 password，vmess/vless 等用 uuid
+  // 密码
   const pwd = n.password || n.uuid || '';
   if (pwd) lines.push(`    password: ${JSON.stringify(pwd)}`);
-  if (n.cipher) lines.push(`    cipher: ${JSON.stringify(n.cipher)}`);
+  // 加密（仅 ss/ssr）
+  if (n.cipher && n.cipher !== 'auto') lines.push(`    cipher: ${JSON.stringify(n.cipher)}`);
+  // UDP
   if (n.udp) lines.push('    udp: true');
-  if (n.tfo) lines.push('    tfo: true');
+  // skip-cert-verify
   if (n['skip-cert-verify']) lines.push('    skip-cert-verify: true');
-  // TLS / SNI / ALPN
+  // SNI（sni 或 servername，不同于 server 时才写）
+  const sn = n.sni || n.servername || '';
+  if (sn && sn !== n.server) lines.push(`    servername: ${JSON.stringify(sn)}`);
+  // TLS
   if (n.tls && n.tls !== 'none') {
     lines.push('    tls: true');
-    if (n.sni && n.sni !== n.server) lines.push(`    servername: ${JSON.stringify(n.sni)}`);
     if (n.alpn && n.alpn.length) lines.push(`    alpn: [${n.alpn}]`);
-  } else if (n.sni && n.sni !== n.server) {
-    lines.push(`    servername: ${JSON.stringify(n.sni)}`);
   }
-  // 传输层
+  // 传输层（仅非 tcp）
   if (n.network && n.network !== 'tcp') {
     lines.push(`    network: ${n.network}`);
-    if (n.host) lines.push(`    host: ${JSON.stringify(n.host)}`);
-    if (n.path) lines.push(`    path: ${JSON.stringify(n.path)}`);
     if (n.network === 'ws') {
       lines.push('    ws-opts:');
       if (n.path) lines.push(`      path: ${JSON.stringify(n.path)}`);
@@ -306,60 +334,22 @@ function formatNodeBlockYaml(n) {
     }
   }
   // 指纹
-  if (n.fingerprint && n.fingerprint !== 'chrome') {
-    lines.push(`    client-fingerprint: ${JSON.stringify(n.fingerprint)}`);
-  }
-  // VLESS 特有
+  if (n.fingerprint && n.fingerprint !== 'chrome') lines.push(`    client-fingerprint: ${JSON.stringify(n.fingerprint)}`);
+  // VLESS flow
   if (n.flow) lines.push(`    flow: ${JSON.stringify(n.flow)}`);
-  if (n.publicKey) lines.push(`    reality-opts:\n      public-key: ${JSON.stringify(n.publicKey)}`);
-  if (n.shortId) lines.push(`      short-id: ${JSON.stringify(n.shortId)}`);
-  // Hysteria 特有
+  // Hysteria up/down
   if (n.upMbps) lines.push(`    up: ${JSON.stringify(n.upMbps)}`);
   if (n.downMbps) lines.push(`    down: ${JSON.stringify(n.downMbps)}`);
-  if (n.obfs) lines.push(`    obfs: ${JSON.stringify(n.obfs)}`);
+  // obfs (hysteria)
+  if (n.obfs && n.type !== 'ssr') lines.push(`    obfs: ${JSON.stringify(n.obfs)}`);
   if (n.obfsPassword) lines.push(`    obfs-password: ${JSON.stringify(n.obfsPassword)}`);
-  // TUIC 特有
-  if (n.congestionControl) lines.push(`    congestion-controller: ${JSON.stringify(n.congestionControl)}`);
-  if (n.udpRelayMode) lines.push(`    udp-relay-mode: ${JSON.stringify(n.udpRelayMode)}`);
-  // 协议参数 (ssr)
-  if (n.protocol) lines.push(`    protocol: ${JSON.stringify(n.protocol)}`);
-  if (n.obfs && n.type === 'ssr') lines.push(`    obfs: ${JSON.stringify(n.obfs)}`);
-  if (n.protocolParam) lines.push(`    protocol-param: ${JSON.stringify(n.protocolParam)}`);
-  if (n.obfsParam) lines.push(`    obfs-param: ${JSON.stringify(n.obfsParam)}`);
-  // plugin (ss)
-  if (n.plugin) {
-    lines.push(`    plugin: ${JSON.stringify(n.plugin)}`);
-    if (n.pluginOpts) lines.push(`    plugin-opts:\n      mode: ${JSON.stringify(n.pluginOpts)}`);
-  }
   return lines.join('\n');
-}
-
-// 旧版 flow 风格（/list 端点仍可用，多数客户端兼容）
-function formatNodeFlowYaml(n) {
-  const fields = [];
-  fields.push(`name: ${JSON.stringify(n.rawName)}`);
-  fields.push(`server: ${n.server}`);
-  fields.push(`port: ${n.port}`);
-  fields.push(`type: ${n.type}`);
-  const pwd = n.password || n.uuid || '';
-  if (pwd) fields.push(`password: ${JSON.stringify(pwd)}`);
-  if (n.cipher) fields.push(`cipher: ${JSON.stringify(n.cipher)}`);
-  if (n.udp) fields.push(`udp: true`);
-  if (n.fingerprint && n.fingerprint !== 'chrome') fields.push(`fingerprint: ${n.fingerprint}`);
-  if (n.sni && n.sni !== n.server) fields.push(`sni: ${n.sni}`);
-  if (n['skip-cert-verify']) fields.push(`skip-cert-verify: true`);
-  if (n.tls && n.tls !== 'none') fields.push(`tls: true`);
-  if (n.network && n.network !== 'tcp') fields.push(`network: ${n.network}`);
-  if (n.alpn && n.alpn.length) fields.push(`alpn: [${n.alpn}]`);
-  if (n.host && n.host !== n.server) fields.push(`host: ${JSON.stringify(n.host)}`);
-  if (n.path && n.path !== '/') fields.push(`path: ${JSON.stringify(n.path)}`);
-  return `  - {${fields.join(', ')}}`;
 }
 
 function buildProviderConfig(nodes, ruleData, host, rawSubUrl) {
   const lines = [
     'port: 7890', 'socks-port: 7891', 'allow-lan: true',
-    'mode: Rule', 'log-level: info', 'external-controller: :9090', '',
+    'mode: Rule', 'log-level: info', '',
     'proxy-providers:',
     '  provider:',
     '    type: http',
@@ -371,16 +361,40 @@ function buildProviderConfig(nodes, ruleData, host, rawSubUrl) {
     '      url: http://www.gstatic.com/generate_204',
     '      interval: 300',
     '',
-    'rule-providers:',
   ];
+  // 共享的 rule-providers 生成
+  lines.push(...buildRuleProviders(ruleData, host));
+  lines.push(...buildGroupsWithProvider(nodes));
+  lines.push('', 'rules:');
+  lines.push(...buildRuleRefs(ruleData));
+  return lines.join('\n');
+}
 
-  // 按 group 聚合规则
+function buildInlineConfig(nodes, ruleData, host) {
+  const lines = [
+    'port: 7890', 'socks-port: 7891', 'allow-lan: true',
+    'mode: Rule', 'log-level: info', '',
+    'proxies:'
+  ];
+  for (const n of nodes) lines.push(formatNodeCompact(n));
+  // rule-providers（inline 模式也使用 rule-provider 引用，大幅压缩体积）
+  lines.push('');
+  lines.push(...buildRuleProviders(ruleData, host));
+  lines.push(...buildGroupsInline(nodes));
+  lines.push('', 'rules:');
+  lines.push(...buildRuleRefs(ruleData));
+  return lines.join('\n');
+}
+
+// 共享：生成 rule-providers 块
+function buildRuleProviders(ruleData, host) {
+  if (!ruleData.length) return [];
   const ruleGroups = {};
   for (const r of ruleData) {
     if (!ruleGroups[r.group]) ruleGroups[r.group] = [];
     ruleGroups[r.group].push(r.line);
   }
-  const ruleRefs = [];
+  const lines = ['rule-providers:'];
   for (const [group, rlines] of Object.entries(ruleGroups)) {
     const content = rlines.join('\n');
     const hash = simpleHash(content);
@@ -394,25 +408,24 @@ function buildProviderConfig(nodes, ruleData, host, rawSubUrl) {
       `    url: ${host}/rules/${hash}.yaml`,
       '    interval: 86400'
     );
-    ruleRefs.push(`  - RULE-SET,${name},${group}`);
   }
-
-  lines.push('');
-  lines.push(...buildGroupsWithProvider(nodes));
-  lines.push('', 'rules:');
-  lines.push(...ruleRefs);
-  return lines.join('\n');
+  return lines;
 }
 
-function buildInlineConfig(nodes, ruleData) {
-  const lines = [
-    'port: 7890', 'socks-port: 7891', 'allow-lan: true',
-    'mode: Rule', 'log-level: info', 'external-controller: :9090', '',
-    'proxies:'
-  ];
-  for (const n of nodes) lines.push(formatNodeBlockYaml(n));
-  lines.push(...buildGroupsInline(nodes), ...buildRules(ruleData));
-  return lines.join('\n');
+// 共享：生成 RULE-SET 引用列表
+function buildRuleRefs(ruleData) {
+  if (!ruleData.length) return [];
+  const seen = new Set();
+  const refs = [];
+  for (const r of ruleData) {
+    const name = sanitize(r.group);
+    const key = `${name},${r.group}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      refs.push(`  - RULE-SET,${name},${r.group}`);
+    }
+  }
+  return refs;
 }
 
 function quoteYaml(s) {
@@ -439,10 +452,10 @@ function buildGroupsWithProvider(nodes) {
   }
   lines.push('      - 🚀 手动切换', '      - DIRECT');
 
-  // 🚀 手动切换 (内联节点名)
-  lines.push('  - name: 🚀 手动切换', '    type: select', '    proxies:');
-  for (const n of nodes) lines.push(`      - ${quoteYaml(n.rawName)}`);
-  lines.push('      - DIRECT');
+  // 🚀 手动切换 — 使用 provider（拉取全部节点，避免名称不匹配）
+  lines.push('  - name: 🚀 手动切换', '    type: select',
+    '    use:', '      - provider',
+    '    proxies:', '      - DIRECT');
 
   // ♻️ 自动选择 (使用 provider)
   lines.push('  - name: ♻️ 自动选择', '    type: url-test',
@@ -582,14 +595,14 @@ async function handleRequest(req, res) {
       return respond(res, 404, 'Rules not found');
     }
 
-    // /list - 节点列表
+    // /list - 节点列表 (proxy-provider 用，必须输出 block-style YAML)
     if (pathname === '/list') {
       const listUrl = params.url;
       if (!listUrl) return respond(res, 400, 'Missing url param');
       const nodes = await fetchAndParseSub(listUrl);
       enhanceNodes(nodes);
       const yaml = ['proxies:'];
-      for (const n of nodes) yaml.push(formatNodeFlowYaml(n));
+      for (const n of nodes) yaml.push(formatNodeCompact(n));
       return respond(res, 200, yaml.join('\n'));
     }
 
@@ -645,7 +658,7 @@ async function handleRequest(req, res) {
       const host = `http://${HOST_IP}:${PORT}`;
       const result = (mode === 'provider')
         ? buildProviderConfig(nodes, ruleData, host, subUrl)
-        : buildInlineConfig(nodes, ruleData);
+        : buildInlineConfig(nodes, ruleData, host);
 
       return respond(res, 200, result);
     }
