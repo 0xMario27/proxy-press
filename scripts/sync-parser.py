@@ -42,9 +42,10 @@ worker = f"""/**
 //  Config 构建逻辑（来自 server.js，与本地完全一致）
 // ═══════════════════════════════════════════════════════════
 
-{server_core}
-
+// Worker polyfills（Node.js API → 浏览器兼容）
 {path_polyfill}
+
+{server_core}
 
 // ═══════════════════════════════════════════════════════════
 //  Worker 入口

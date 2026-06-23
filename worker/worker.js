@@ -960,6 +960,9 @@ function parseSurgeLike(content) {
 //  Config 构建逻辑（来自 server.js，与本地完全一致）
 // ═══════════════════════════════════════════════════════════
 
+// Worker polyfills（Node.js API → 浏览器兼容）
+const path = { join: (...args) => args.join('/'), basename: (s) => s.split('/').pop() };
+
 // ═══════════════════════════════════════════════════════════
 //  常量
 // ═══════════════════════════════════════════════════════════
@@ -1138,8 +1141,6 @@ function processRuleText(text, group, rules) {
     }
   }
 }
-
-const path = { join: (...args) => args.join('/'), basename: (s) => s.split('/').pop() };
 
 // ═══════════════════════════════════════════════════════════
 //  Worker 入口
