@@ -1,5 +1,6 @@
 <template>
   <div class="paper">
+    <canvas class="magic-particles"></canvas>
     <div class="paper-inner">
     <!-- ====== 报头 ====== -->
     <div class="masthead">
@@ -20,6 +21,7 @@
     <div class="columns columns-3">
       <div class="col col-span-2">
         <h2 class="headline">Global Internet Consortium Announces Breakthrough in Decentralized Subscription Protocols</h2>
+        <div class="moving-photo"><div class="photo-frame"><div class="photo-face"></div><span class="photo-caption">Dr. Helena Vasquez at GIC Summit — <em>Moving Photograph</em></span></div></div>
         <div class="byline">By MARCUS T. REEVES &bull; Technology Correspondent</div>
         <p><span class="dropcap">T</span>he Global Internet Consortium (GIC) announced yesterday a landmark agreement to standardize proxy subscription formats across all major platforms. The move, decades in the making, promises to unify the fragmented landscape of node distribution protocols that have long plagued network administrators worldwide.</p>
         <p>"This is a watershed moment for internet freedom," said Dr. Helena Vasquez, chair of the GIC standards committee. "For years, users have struggled with incompatible subscription formats. Now, with the adoption of universal conversion standards, anyone can transform their proxy configurations with a single click."</p>
@@ -269,8 +271,38 @@ export default {
       if (lc) this.form.remoteConfig = lc.value;
     }
     this.getBackendVersion();
+    this.$nextTick(() => this.initMagicParticles());
   },
   methods: {
+    initMagicParticles() {
+      const canvas = this.$el.querySelector('.magic-particles');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      const particles = Array.from({length: 15}, () => ({
+        x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4 - 0.2,
+        life: 1, maxLife: 200 + Math.random() * 300,
+        size: 1 + Math.random() * 2
+      }));
+      const animate = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (const p of particles) {
+          p.x += p.vx; p.y += p.vy; p.life--;
+          if (p.life <= 0) { p.x = Math.random() * canvas.width; p.y = canvas.height + 10; p.life = p.maxLife; }
+          const alpha = Math.min(1, p.life / 50) * 0.4;
+          ctx.fillStyle = `rgba(200,170,100,` + alpha + ')';
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+          if (Math.random() < 0.02) {
+            ctx.fillStyle = 'rgba(255,220,140,0.8)';
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size*2, 0, Math.PI*2); ctx.fill();
+          }
+        }
+        requestAnimationFrame(animate);
+      };
+      animate();
+    },
     notify(msg, type) {
       this.notice = { show: true, msg, type: type || 'info' };
       clearTimeout(this._noticeTimer);
@@ -522,4 +554,22 @@ p { font-size: 12px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
 >>> .el-checkbox.is-bordered { border-radius: 0 !important; background: #fff; border: 1px solid #ccc !important; }
 >>> .el-checkbox.is-checked { border-color: #1a1a1a !important; }
 >>> .el-checkbox__label { font-size: 11px; }
+
+/* 🪄 Harry Potter magic effects */
+.magic-particles { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.name { animation: inkSpread 3s ease-out, shimmer 4s ease-in-out 3s infinite; }
+@keyframes inkSpread { from { letter-spacing: 15px; opacity: 0; } to { letter-spacing: 3px; opacity: 1; } }
+@keyframes shimmer { 0%,100% { text-shadow: 0 0 0 transparent; } 50% { text-shadow: 0 0 10px rgba(180,150,60,0.35); } }
+.moving-photo { float: right; width: 130px; margin: 0 0 8px 12px; }
+.photo-frame { border: 3px double #555; padding: 3px; background: #f5f0e0; animation: frameGlow 2s ease-in-out infinite; }
+@keyframes frameGlow { 0%,100% { box-shadow: 0 0 2px rgba(180,140,60,0.2); } 50% { box-shadow: 0 0 10px rgba(180,140,60,0.5); } }
+.photo-face { width: 118px; height: 90px; background: linear-gradient(45deg, #d4c5a0, #c4b590, #d4c5a0, #e0d0b0, #d4c5a0); background-size: 300% 300%; animation: faceShift 3s ease-in-out infinite, facePulse 6s ease-in-out infinite; position: relative; overflow: hidden; }
+.photo-face::before { content: "\01f469\200d\01f4bc"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 36px; animation: faceWink 4s ease-in-out infinite; }
+@keyframes faceShift { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 100%; } }
+@keyframes facePulse { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.12); } }
+@keyframes faceWink { 0%,100% { transform: scale(1); } 30% { transform: scale(1.08) rotate(-2deg); } 60% { transform: scale(0.94) rotate(1deg); } }
+.photo-caption { display: block; font-size: 7px; font-style: italic; text-align: center; color: #888; margin-top: 2px; }
+.headline { animation: glowPulse 5s ease-in-out infinite; }
+@keyframes glowPulse { 0%,100% { text-shadow: 0 0 0 transparent; } 30% { text-shadow: 0 0 6px rgba(180,150,60,0.2); } }
+
 </style>
