@@ -43,6 +43,7 @@ jobs:
         run: |
           cp sub-web/src/views/Subconverter.vue /tmp/sub-web-src/src/views/Subconverter.vue
           cp sub-web/src/config/remote-configs.js /tmp/sub-web-src/src/config/remote-configs.js
+          cp sub-web/vite.config.js /tmp/sub-web-src/vite.config.js
           cp sub-web/.env.gh-pages /tmp/sub-web-src/.env.production
 
       - name: Install & Build
