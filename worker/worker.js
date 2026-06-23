@@ -1127,6 +1127,16 @@ function processRuleText(text, group, rules) {
 //  Worker 入口
 // ═══════════════════════════════════════════════════════════
 
+async function fetchText(url, timeout = 30000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeout);
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': 'sub-smart-js/1.0', 'Accept': '*/*' }, signal: ctrl.signal });
+    if (r.status >= 400) throw new Error(`HTTP ${r.status}`);
+    return await r.text();
+  } finally { clearTimeout(t); }
+}
+
 export default {
   async fetch(request) {
     const u = new URL(request.url), p = u.pathname;
