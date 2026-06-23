@@ -400,14 +400,7 @@ function buildRuleProviders(ruleData, host) {
     const hash = simpleHash(content);
     const name = sanitize(group);
     RULE_STORE.set(hash, content);
-    lines.push(
-      `  ${name}:`,
-      '    type: http',
-      '    behavior: classical',
-      `    path: ./rulesets/${name}.yaml`,
-      `    url: ${host}/rules/${hash}.yaml`,
-      '    interval: 86400'
-    );
+    lines.push(`  ${name}: {type: http, behavior: classical, path: ./rulesets/${name}.yaml, url: ${host}/rules/${hash}.yaml, interval: 86400}`);
   }
   return lines;
 }
