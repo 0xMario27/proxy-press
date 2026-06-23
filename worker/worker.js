@@ -19,8 +19,13 @@ export default {
       const targetUrl = `${SUBCONVERTER}/sub?${url.searchParams.toString()}`;
 
       try {
-        // 先尝试直接转发
-        let resp = await fetch(targetUrl);
+        // 先尝试直接转发（带浏览器 UA 避免被拦截）
+        let resp = await fetch(targetUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; ProxyPress/1.0)',
+            'Accept': '*/*'
+          }
+        });
         let text = await resp.text();
 
         // 如果 subconverter 无法解析，尝试自己拉取订阅并解码 base64
@@ -29,9 +34,14 @@ export default {
           if (rawUrl) {
             const decodedUrl = decodeURIComponent(rawUrl);
             const subResp = await fetch(decodedUrl, {
-              headers: { 'User-Agent': 'proxy-press/1.0', 'Accept': '*/*' }
+              headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ProxyPress/1.0)', 'Accept': '*/*' }
             });
             const rawBody = await subResp.text();
+
+            // 检查是否被拦截
+            if (rawBody.includes('blocked') || rawBody.includes('Sorry')) {
+              return new Response('Backend blocked. Try again later.', { status: 502 });
+            }
 
             // 尝试 base64 解码
             let decoded = rawBody;
