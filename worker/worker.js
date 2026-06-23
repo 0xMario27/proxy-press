@@ -988,26 +988,7 @@ const REGION_MAP = [
 //  网络工具
 // ═══════════════════════════════════════════════════════════
 
-function fetchText(fetchUrl, timeout = 30000) {
-  return new Promise((resolve, reject) => {
-    const u = new URL(fetchUrl);
-    const mod = u.protocol === 'https:' ? https : http;
-    const req = mod.get(u, { timeout, headers: { 'User-Agent': 'sub-smart-js/1.0', 'Accept': '*/*' } }, res => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        return fetchText(res.headers.location, timeout).then(resolve, reject);
-      }
-      if (res.statusCode >= 400) {
-        req.destroy();
-        return reject(new Error(`HTTP ${res.statusCode}`));
-      }
-      let body = '';
-      res.on('data', c => body += c);
-      res.on('end', () => resolve(body));
-    });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
-  });
-}
+
 
 function isBase64(str) {
   return /^[A-Za-z0-9+/=\s\r\n]+$/.test(str.trim()) && str.length > 50 && !str.includes('<');

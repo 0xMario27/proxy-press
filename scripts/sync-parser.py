@@ -18,8 +18,8 @@ start = server.rfind('// ═', 0, start) if '常量' in server else server.find(
 end = server.find('订阅获取与解析')
 end = server.rfind('// ═', 0, end) if '订阅获取与解析' in server else server.find('HTTP 请求处理')
 server_core = server[start:end].strip()
-# 替换 Node.js API（Worker 不兼容）
-import re
+# 移除 Node.js 特定的 fetchText（Worker 网络层有自己的 fetch-based 版本）
+server_core = re.sub(r'function fetchText\([^)]*\).*?^\}', '', server_core, flags=re.MULTILINE | re.DOTALL)
 server_core = server_core.replace('__dirname', '""')
 server_core = re.sub(r'fs\.existsSync\([^)]+\)', 'false', server_core)
 server_core = re.sub(r'fs\.readFileSync\([^)]+\)', '""', server_core)
