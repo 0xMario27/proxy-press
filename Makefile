@@ -60,6 +60,14 @@ sync:
 	@python3 scripts/sync-parser.py
 	@node --check worker/worker.js && echo '✅ Syntax OK'
 
+update-rules:
+	@echo "📥 从 ACL4SSR 上游同步规则文件..."
+	@git remote get-url upstream 2>/dev/null || git remote add upstream https://github.com/ACL4SSR/ACL4SSR.git
+	@git fetch upstream master
+	@git checkout upstream/master -- Clash/ Acl/ Tool/ 2>/dev/null
+	@echo "✅ 规则已更新（Clash/ Acl/ Tool/）"
+	@echo "⚠️  检查 git diff 后 commit 即可"
+
 help:
 	@echo "make up / down / restart / status / logs"
 	@echo "make build / rebuild / build-web / restart-web / restart-backend"
