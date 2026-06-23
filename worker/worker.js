@@ -53,7 +53,7 @@ function tryParseSS(uri) {
     let rest = uri.slice(5);
     // Handle SIP002 format: ss://method:password@server:port
     if (rest.includes('@')) {
-      const m = rest.match(/^(.+):(.+)@(.+):(\d+)(?:\?(.*))?(?:#(.+))?$/);
+      const m = rest.match(/^(.+):(.+)@(.+):(\d+)(?:\?([^#]*))?(?:#(.+))?$/);
       if (!m) return null;
       const [, method, password, server, port, query, name] = m;
       const params = parseQuery(query);
@@ -86,7 +86,7 @@ function tryParseVMess(uri) {
 function tryParseVLess(uri) {
   if (!uri.startsWith('vless://')) return null;
   try {
-    const m = uri.match(/^vless:\/\/(.+)@(.+):(\d+)\/?(?:\?(.*))?(?:#(.+))?$/);
+    const m = uri.match(/^vless:\/\/(.+)@(.+):(\d+)\/?(?:\?([^#]*))?(?:#(.+))?$/);
     if (!m) return null;
     const [, password, server, port, query, name] = m;
     const params = parseQuery(query);
@@ -98,7 +98,7 @@ function tryParseVLess(uri) {
 function tryParseTrojan(uri) {
   if (!uri.startsWith('trojan://')) return null;
   try {
-    const m = uri.match(/^trojan:\/\/(.+)@(.+):(\d+)\/?(?:\?(.*))?(?:#(.+))?$/);
+    const m = uri.match(/^trojan:\/\/(.+)@(.+):(\d+)\/?(?:\?([^#]*))?(?:#(.+))?$/);
     if (!m) return null;
     const [, password, server, port, query, name] = m;
     const params = parseQuery(query);
@@ -111,7 +111,7 @@ function tryParseHysteria(uri) {
   // hysteria:// or hy2:// or hysteria2://
   if (!uri.match(/^(hysteria|hy2|hysteria2):\/\//)) return null;
   try {
-    const m = uri.match(/^(hysteria2?|hy2):\/\/([^@]+)@([^:]+):(\d+)\/?(?:\?(.*))?(?:#(.+))?$/);
+    const m = uri.match(/^(hysteria2?|hy2):\/\/([^@]+)@([^:]+):(\d+)\/?(?:\?([^#]*))?(?:#(.+))?$/);
     if (!m) return null;
     const [, proto, password, server, port, query, name] = m;
     const params = parseQuery(query);
@@ -124,7 +124,7 @@ function tryParseHysteria(uri) {
 function tryParseAnyTLS(uri) {
   if (!uri.startsWith('anytls://')) return null;
   try {
-    const m = uri.match(/^anytls:\/\/(.+)@(.+):(\d+)\/?(?:\?(.*))?(?:#(.+))?$/);
+    const m = uri.match(/^anytls:\/\/(.+)@(.+):(\d+)\/?(?:\?([^#]*))?(?:#(.+))?$/);
     if (!m) return null;
     const [, password, server, port, query, name] = m;
     const params = parseQuery(query);
@@ -136,7 +136,7 @@ function tryParseAnyTLS(uri) {
 function tryParseTUIC(uri) {
   if (!uri.startsWith('tuic://')) return null;
   try {
-    const m = uri.match(/^tuic:\/\/(.+)@(.+):(\d+)\/?(?:\?(.*))?(?:#(.+))?$/);
+    const m = uri.match(/^tuic:\/\/(.+)@(.+):(\d+)\/?(?:\?([^#]*))?(?:#(.+))?$/);
     if (!m) return null;
     const [, password, server, port, query, name] = m;
     const params = parseQuery(query);
