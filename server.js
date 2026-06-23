@@ -191,7 +191,7 @@ function processRuleText(text, group, rules) {
     const s = line.trim();
     if (!s || s.startsWith('#') || s.startsWith(';')) continue;
     // 跳过非规则行
-    if (!/^(DOMAIN|IP-CIDR|GEOIP|MATCH|RULE-SET|DST-PORT|SRC-PORT|PROCESS-NAME)/i.test(s)) continue;
+    if (!/^(DOMAIN|IP-CIDR|GEOIP|MATCH|RULE-SET|DST-PORT|SRC-PORT|PROCESS-NAME|AND|OR|NOT|URL-REGEX|SRC-IP)/i.test(s)) continue;
     const parts = s.split(',');
     const last = parts[parts.length - 1].trim();
     if (last === 'no-resolve' || last === 'src' || last === 'dst' || !last) {
@@ -362,11 +362,12 @@ function buildProviderConfig(nodes, ruleData, host, rawSubUrl) {
     '      interval: 300',
     '',
   ];
-  // 共享的 rule-providers 生成
-  lines.push(...buildRuleProviders(ruleData, host));
   lines.push(...buildGroupsWithProvider(nodes));
   lines.push('', 'rules:');
   lines.push(...buildRuleRefs(ruleData));
+  // rule-providers 放在 rules 之后
+  lines.push('');
+  lines.push(...buildRuleProviders(ruleData, host));
   return lines.join('\n');
 }
 
@@ -377,48 +378,100 @@ function buildInlineConfig(nodes, ruleData, host) {
     'proxies:'
   ];
   for (const n of nodes) lines.push(formatNodeCompact(n));
-  // rule-providers（inline 模式也使用 rule-provider 引用，大幅压缩体积）
   lines.push('');
-  lines.push(...buildRuleProviders(ruleData, host));
   lines.push(...buildGroupsInline(nodes));
+  // Stash 兼容的 rules + rule-providers
   lines.push('', 'rules:');
   lines.push(...buildRuleRefs(ruleData));
+  lines.push('');
+  lines.push(...buildRuleProviders(ruleData, host));
   return lines.join('\n');
 }
 
-// 共享：生成 rule-providers 块
+// 共享：生成 Stash 兼容的 rule-providers（按 domain/ipcidr 拆分）
 function buildRuleProviders(ruleData, host) {
   if (!ruleData.length) return [];
-  const ruleGroups = {};
+  
+  // 按 group + 类型拆分为 domain 和 ipcidr 两个 provider
+  const domainRules = {};  // { group: [value, ...] }
+  const ipcidrRules = {};  // { group: [value, ...] }
+  const otherRules = [];   // MATCH, PROCESS-NAME 等保留为内联
+
   for (const r of ruleData) {
-    if (!ruleGroups[r.group]) ruleGroups[r.group] = [];
-    ruleGroups[r.group].push(r.line);
+    const parts = r.line.split(',');
+    const ruleType = parts[0].trim().toUpperCase();
+    const ruleValue = parts[1] ? parts[1].trim() : '';
+    const group = r.group;
+
+    if (ruleType === 'DOMAIN' || ruleType === 'DOMAIN-SUFFIX' || 
+        ruleType === 'DOMAIN-KEYWORD' || ruleType === 'URL-REGEX') {
+      let val = ruleValue;
+      if (ruleType === 'DOMAIN-SUFFIX') val = '+.' + val;  // Stash: +. 前缀表示 suffix
+      if (!domainRules[group]) domainRules[group] = [];
+      domainRules[group].push(val);
+    } else if (ruleType === 'IP-CIDR' || ruleType === 'IP-CIDR6' || ruleType === 'GEOIP') {
+      if (!ipcidrRules[group]) ipcidrRules[group] = [];
+      ipcidrRules[group].push(ruleType === 'GEOIP' ? ruleValue : ruleValue);
+      // GEOIP,CN → 存为 "CN"（但 Stash ipcidr 行为可能不支持 GEOIP，保留原值）
+      if (ruleType === 'GEOIP') ipcidrRules[group].push(ruleValue);
+      else ipcidrRules[group].push(ruleValue);
+    } else {
+      // MATCH, PROCESS-NAME, DST-PORT 等保留为内联 rule
+      otherRules.push(r);
+    }
   }
-  const lines = ['rule-providers:'];
-  for (const [group, rlines] of Object.entries(ruleGroups)) {
-    const content = rlines.join('\n');
+
+  const lines = [];
+  if (Object.keys(domainRules).length > 0 || Object.keys(ipcidrRules).length > 0) {
+    lines.push('rule-providers:');
+  }
+
+  // 为每个 group 生成 domain provider
+  for (const [group, values] of Object.entries(domainRules)) {
+    const content = values.join('\n');
     const hash = simpleHash(content);
-    const name = sanitize(group);
+    const name = sanitize(group) + '_domain';
     RULE_STORE.set(hash, content);
-    lines.push(`  ${name}: {type: http, behavior: classical, path: ./rulesets/${name}.yaml, url: ${host}/rules/${hash}.yaml, interval: 86400}`);
+    lines.push(`  ${name}: {behavior: domain, format: text, path: ./rulesets/${name}.txt, url: ${host}/rules/${hash}.yaml, interval: 86400}`);
   }
+
+  // 为每个 group 生成 ipcidr provider
+  for (const [group, values] of Object.entries(ipcidrRules)) {
+    const content = values.join('\n');
+    const hash = simpleHash(content);
+    const name = sanitize(group) + '_ipcidr';
+    RULE_STORE.set(hash, content);
+    lines.push(`  ${name}: {behavior: ipcidr, format: text, path: ./rulesets/${name}.txt, url: ${host}/rules/${hash}.yaml, interval: 86400}`);
+  }
+
   return lines;
 }
 
-// 共享：生成 RULE-SET 引用列表
+// 共享：生成 RULE-SET 引用列表（Stash 兼容）
 function buildRuleRefs(ruleData) {
   if (!ruleData.length) return [];
-  const seen = new Set();
-  const refs = [];
+  const refs = new Set();
+  const otherRefs = [];
+
   for (const r of ruleData) {
-    const name = sanitize(r.group);
-    const key = `${name},${r.group}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      refs.push(`  - RULE-SET,${name},${r.group}`);
+    const parts = r.line.split(',');
+    const ruleType = parts[0].trim().toUpperCase();
+    const ruleValue = parts[1] ? parts[1].trim() : '';
+    const group = r.group;
+    const name = sanitize(group);
+
+    if (ruleType === 'DOMAIN' || ruleType === 'DOMAIN-SUFFIX' || 
+        ruleType === 'DOMAIN-KEYWORD' || ruleType === 'URL-REGEX') {
+      refs.add(`  - RULE-SET,${name}_domain,${group}`);
+    } else if (ruleType === 'IP-CIDR' || ruleType === 'IP-CIDR6' || ruleType === 'GEOIP') {
+      refs.add(`  - RULE-SET,${name}_ipcidr,${group}` + (parts[parts.length-1].trim() === 'no-resolve' ? ',no-resolve' : ''));
+    } else {
+      // 内联规则直接写入
+      otherRefs.push(`  - ${r.line}`);
     }
   }
-  return refs;
+
+  return [...refs, ...otherRefs];
 }
 
 function quoteYaml(s) {
@@ -666,8 +719,9 @@ async function handleRequest(req, res) {
         }
       }
 
-      // 3. 构建配置
-      const host = `http://${HOST_IP}:${PORT}`;
+      // 3. 构建配置（使用请求中的 Host 自动推导外部地址）
+      const proto = req.headers['x-forwarded-proto'] || 'http';
+      const host = `${proto}://${req.headers.host || `${HOST_IP}:${PORT}`}`;
       const result = (mode === 'provider')
         ? buildProviderConfig(nodes, ruleData, host, subUrl)
         : buildInlineConfig(nodes, ruleData, host);
