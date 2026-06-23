@@ -399,15 +399,15 @@ export default {
 .col-span-2 { flex: 2 !important; }
 @media (max-width: 700px) { .columns { flex-direction: column; } }
 
-.headline { font-family: "Times New Roman", serif; font-size: clamp(16px, 3vw, 22px); font-weight: 900; line-height: 1.2; margin: 0 0 6px; }
-.subhead { font-family: "Times New Roman", serif; font-size: 13px; font-weight: 900; margin: 8px 0 4px; text-transform: uppercase; letter-spacing: 1px; }
+.headline { font-family: "Times New Roman", serif; font-size: clamp(18px, 3.5vw, 26px); font-weight: 900; line-height: 1.2; margin: 0 0 6px; }
+.subhead { font-family: "Times New Roman", serif; font-size: 14px; font-weight: 900; margin: 8px 0 4px; text-transform: uppercase; letter-spacing: 1px; }
 .byline { font-size: 9px; color: #666; font-style: italic; font-family: "Helvetica Neue", Arial, sans-serif; margin-bottom: 6px; }
 .dropcap { float: left; font-size: 42px; line-height: 0.8; margin: 0 4px 0 0; font-weight: 900; font-family: "Times New Roman", serif; }
 .quote { margin: 8px 16px; padding: 6px 0; border-top: 1px solid #aaa; border-bottom: 1px solid #aaa; font-style: italic; font-size: 13px; text-align: center; color: #333; }
 .quote-attrib { font-size: 9px; font-style: normal; color: #666; font-family: "Helvetica Neue", Arial, sans-serif; }
 .brief { font-size: 10px; line-height: 1.4; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dotted #ccc; }
 
-p { font-size: 12px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
+p { font-size: 13px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
 .news-light p, .news-light .subhead { color: #777; }
 .news-light .headline { color: #555; }
 .news-light .byline { color: #aaa; }
@@ -565,7 +565,24 @@ p { font-size: 12px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
 .photo-frame { border: 3px double #555; padding: 3px; background: #f5f0e0; animation: frameGlow 2s ease-in-out infinite; }
 @keyframes frameGlow { 0%,100% { box-shadow: 0 0 2px rgba(180,140,60,0.2); } 50% { box-shadow: 0 0 10px rgba(180,140,60,0.5); } }
 .photo-face { width: 118px; height: 90px; background: linear-gradient(45deg, #d4c5a0, #c4b590, #d4c5a0, #e0d0b0, #d4c5a0); background-size: 300% 300%; animation: faceShift 3s ease-in-out infinite, facePulse 6s ease-in-out infinite; position: relative; overflow: hidden; }
-.photo-face::before { content: "\01f469\200d\01f4bc"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 36px; animation: faceWink 4s ease-in-out infinite; }
+.photo-face::before {
+  content: "";
+  width: 42px; height: 52px; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  background: #2c1810; border-radius: 4px 4px 0 0;
+  box-shadow:
+    0 -10px 0 -3px #1a0a00, -8px -8px 0 -3px #1a0a00, 8px -8px 0 -3px #1a0a00,
+    -12px 3px 0 -3px #333, 12px 3px 0 -3px #333, 0 3px 0 -3px #333,
+    -9px 5px 0 0 #0a8, 9px 5px 0 0 #0a8,
+    -6px -2px 0 0 #d44,
+    2px 14px 0 -2px #c99, -2px 14px 0 -2px #c99,
+    0 26px 0 0 #444, 0 30px 0 0 #444, -5px 26px 0 0 #444, 5px 26px 0 0 #444;
+  animation: pixelWink 4s ease-in-out infinite, faceWink 4s ease-in-out infinite;
+}
+@keyframes pixelWink {
+  0%,100% { box-shadow: 0 -10px 0 -3px #1a0a00, -8px -8px 0 -3px #1a0a00, 8px -8px 0 -3px #1a0a00, -12px 3px 0 -3px #333, 12px 3px 0 -3px #333, 0 3px 0 -3px #333, -9px 5px 0 0 #0a8, 9px 5px 0 0 #0a8, -6px -2px 0 0 #d44, 2px 14px 0 -2px #c99, -2px 14px 0 -2px #c99, 0 26px 0 0 #444, 0 30px 0 0 #444, -5px 26px 0 0 #444, 5px 26px 0 0 #444; }
+  45% { box-shadow: 0 -10px 0 -3px #1a0a00, -8px -8px 0 -3px #1a0a00, 8px -8px 0 -3px #1a0a00, -12px 3px 0 -3px #333, 12px 3px 0 -3px #333, 0 3px 0 -3px #333, -8px 5px 0 0 #0a8, 10px 5px 0 0 #0a8, -6px -2px 0 0 #d44, 2px 14px 0 -2px #c99, -2px 14px 0 -2px #c99, 0 26px 0 0 #444, 0 30px 0 0 #444, -5px 26px 0 0 #444, 5px 26px 0 0 #444; }
+  50% { box-shadow: 0 -10px 0 -3px #1a0a00, -8px -8px 0 -3px #1a0a00, 8px -8px 0 -3px #1a0a00, -12px 3px 0 -3px #333, 12px 3px 0 -3px #333, 0 3px 0 -3px #333, -9px 5px 0 0 #0a8, 9px 5px 0 0 #0a8, -6px -2px 0 0 #d44, 2px 14px 0 -2px #c99, -2px 14px 0 -2px #c99, 0 26px 0 0 #444, 0 30px 0 0 #444, -5px 26px 0 0 #444, 5px 26px 0 0 #444; }
+}
 @keyframes faceShift { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 100%; } }
 @keyframes facePulse { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.12); } }
 @keyframes faceWink { 0%,100% { transform: scale(1); } 30% { transform: scale(1.08) rotate(-2deg); } 60% { transform: scale(0.94) rotate(1deg); } }
@@ -575,9 +592,9 @@ p { font-size: 12px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
 
 
 /* 🪄 魔法增强 */
-.ticker { background: #1a1a1a; color: #d4c5a0; padding: 4px 0; margin: 4px 0; font-size: 9px; letter-spacing: 1px; overflow: hidden; white-space: nowrap; font-family: "Courier New", monospace; }
-.ticker-label { background: #8b0000; color: #fff; padding: 2px 8px; margin-right: 10px; font-weight: bold; font-size: 8px; }
-.ticker-text { animation: tickerScroll 30s linear infinite; display: inline-block; }
+.ticker { background: #1a1a1a; color: #d4c5a0; padding: 4px 0; margin: 4px 0; font-size: 9px; letter-spacing: 1px; overflow: hidden; font-family: "Courier New", monospace; display: flex; }
+.ticker-label { background: #8b0000; color: #fff; padding: 3px 10px; font-weight: bold; font-size: 8px; white-space: nowrap; flex-shrink: 0; }
+.ticker-text { animation: tickerScroll 30s linear infinite; white-space: nowrap; padding-left: 20px; }
 @keyframes tickerScroll { from { transform: translateX(100%); } to { transform: translateX(-100%); } }
 @media (prefers-reduced-motion) { .ticker-text { animation: none; } }
 .mini-ad { border: 1px dashed #999; padding: 8px; text-align: center; font-size: 11px; background: #fdf8ef; margin: 8px 0; }
