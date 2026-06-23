@@ -238,13 +238,21 @@ export default {
     processedSubUrl() { return this.form.sourceSubUrl.replace(/(\n|\r|\n\r)/g, "|"); },
     advanced() { return this.showAdvanced ? '2' : '1'; },
     currentBackend() {
-      if (this.form.customBackend) return this.form.customBackend;
-      const base = CONSTANTS.DEFAULT_BACKEND.replace('/sub?', '').replace(/:\d+$/, '');
-      // 本地后端加端口，所有后端都加 mode 参数
-      if (base.includes('localhost') || base.includes('127.0.0.1')) {
+      if (this.form.customBackend) {
+        const b = this.form.customBackend;
+        if (b.endsWith('?') || b.endsWith('&')) return b;
+        return b + (b.includes('?') ? '&' : '?');
+      }
+      // 剥离已有的 /sub?... 确保由本方法统一拼接
+      let base = CONSTANTS.DEFAULT_BACKEND.replace(/\/sub\?.*$/, '');
+      const isLocal = base.includes('localhost') || base.includes('127.0.0.1');
+      if (isLocal) {
+        base = base.replace(/:\d+$/, '');
         return `${base}:25600/sub?mode=${this.providerMode ? 'provider' : 'inline'}&`;
       }
-      return `${CONSTANTS.DEFAULT_BACKEND}mode=${this.providerMode ? 'provider' : 'inline'}&`;
+      // 远程后端
+      const sep = base.endsWith('/') ? '' : '/';
+      return `${base}${sep}sub?mode=${this.providerMode ? 'provider' : 'inline'}&`;
     }
   },
   created() {

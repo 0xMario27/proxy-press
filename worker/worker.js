@@ -240,7 +240,7 @@ export default {
       if (!rawUrl) return new Response('Missing url', { status: 400 });
       const nodes = await fetchNodes(decodeURIComponent(rawUrl));
       const yaml = ['proxies:'];
-      for (const n of nodes) yaml.push(formatNodeLine(n));
+      for (const n of nodes) yaml.push(`  - {name: ${JSON.stringify(n.rawName)}, server: ${n.server}, port: ${n.port}, type: ${n.type}, password: ${JSON.stringify(n.password)}, fingerprint: ${n.fingerprint}, sni: ${n.sni}, skip-cert-verify: ${n['skip-cert-verify']}, udp: ${n.udp}}`);
       return respond(yaml.join('\n'), 300);
     }
 
@@ -323,7 +323,8 @@ async function fetchRules() {
 // ═══════════════════════════════════════════
 
 function formatNodeLine(n) {
-  return `  - {name: ${JSON.stringify(n.name)}, server: ${n.server}, port: ${n.port}, type: ${n.type}, password: ${JSON.stringify(n.password)}, cipher: ${JSON.stringify(n.cipher)}, udp: ${n.udp}, fingerprint: ${n.fingerprint}, sni: ${n.sni}, skip-cert-verify: ${n['skip-cert-verify']}}`;
+  // 使用 rawName（无 emoji），匹配 subconverter 输出
+  return `  - {name: ${JSON.stringify(n.rawName)}, server: ${n.server}, port: ${n.port}, type: ${n.type}, password: ${JSON.stringify(n.password)}, cipher: ${JSON.stringify(n.cipher)}, udp: ${n.udp}, fingerprint: ${n.fingerprint}, sni: ${n.sni}, skip-cert-verify: ${n['skip-cert-verify']}}`;
 }
 
 function buildInlineConfig(nodes, rules) {
