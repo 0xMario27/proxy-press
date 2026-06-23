@@ -66,6 +66,8 @@ async function fetchText(url, timeout = 30000) {{
   }} finally {{ clearTimeout(t); }}
 }}
 
+const CONFIG_BASE = 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/';
+
 export default {{
   async fetch(request) {{
     const u = new URL(request.url), p = u.pathname;
