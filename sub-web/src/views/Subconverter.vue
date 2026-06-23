@@ -567,8 +567,8 @@ p { font-size: 14px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
 .photo-face { width: 118px; height: 90px; background: linear-gradient(45deg, #d4c5a0, #c4b590, #d4c5a0, #e0d0b0, #d4c5a0); background-size: 300% 300%; animation: faceShift 3s ease-in-out infinite, facePulse 6s ease-in-out infinite; position: relative; overflow: hidden; }
 .photo-face::before {
   content: "";
-  width: 48px; height: 60px; position: absolute; top: 50%; left: 50%;
-  transform: translate(-50%,-50%);
+  width: 3px; height: 3px; position: absolute; top: 50%; left: 50%;
+  margin-left: -24px; margin-top: -30px;
   background: transparent; border-radius: 0;
   box-shadow:
     9px 0px 0 0 #1a0a0a,
@@ -1364,6 +1364,7 @@ p { font-size: 14px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
     42px 51px 0 0 #1a1a2e,
     45px 51px 0 0 #1a1a2e; }
 }
+
 
 @keyframes faceShift { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 100%; } }
 @keyframes facePulse { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.12); } }
