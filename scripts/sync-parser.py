@@ -104,15 +104,6 @@ export default {{
 }};
 
 async function fetchAndParseSub(subUrl) {{
-  if (!/^https?:\\/\\//.test(subUrl)) {{
-    let body = decodeURIComponent(subUrl);
-    if (isBase64(body) && !body.includes('://')) {{ const d = base64Decode(body); if (d.includes('://') || d.includes(' = ')) body = d; }}
-    return parseSubscription(body);
-  }}
-  let body = await fetchText(subUrl);
-  if (isBase64(body) && !body.includes('://')) {{ const d = base64Decode(body); if (d.includes('://')) body = d; }}
-  return parseSubscription(body);
-}}
 """
 
 open('worker/worker.js', 'w').write(worker)
