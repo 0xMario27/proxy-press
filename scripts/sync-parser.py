@@ -18,6 +18,13 @@ start = server.rfind('// ═', 0, start) if '常量' in server else server.find(
 end = server.find('订阅获取与解析')
 end = server.rfind('// ═', 0, end) if '订阅获取与解析' in server else server.find('HTTP 请求处理')
 server_core = server[start:end].strip()
+# 替换 Node.js API（Worker 不兼容）
+import re
+server_core = server_core.replace('__dirname', '""')
+server_core = re.sub(r'fs\.existsSync\([^)]+\)', 'false', server_core)
+server_core = re.sub(r'fs\.readFileSync\([^)]+\)', '""', server_core)
+# 添加 path polyfill 到 worker
+path_polyfill = "const path = { join: (...args) => args.join('/'), basename: (s) => s.split('/').pop() };"
 
 # 3. 构建 Worker（无重复函数）
 worker = f"""/**
@@ -36,6 +43,8 @@ worker = f"""/**
 // ═══════════════════════════════════════════════════════════
 
 {server_core}
+
+{path_polyfill}
 
 // ═══════════════════════════════════════════════════════════
 //  Worker 入口

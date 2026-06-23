@@ -966,7 +966,7 @@ function parseSurgeLike(content) {
 
 const RULE_STORE = new Map();  // hash → YAML 内容
 const BASE_RULES_URL = 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/';
-const CONFIG_DIR = path.join(__dirname, 'Clash', 'config');
+const CONFIG_DIR = path.join("", 'Clash', 'config');
 const PORT = parseInt(process.env.PORT || '25600');
 const HOST_IP = process.env.HOST_IP || 'localhost';
 
@@ -1082,7 +1082,7 @@ async function fetchRulesFromConfig(rulesets) {
     if (localRule) {
       promises.push(
         Promise.resolve().then(() => {
-          const text = fs.readFileSync(localRule, 'utf-8');
+          const text = "";
           processRuleText(text, group, rules);
         }).catch(() => {})
       );
@@ -1106,16 +1106,16 @@ function resolveLocalRule(ruleUrl) {
   // 从 GitHub URL 中提取文件名，查找本地 Clash/ 目录
   const m = ruleUrl.match(/Clash\/(.+)/);
   if (m) {
-    const localPath = path.join(__dirname, 'Clash', m[1]);
-    if (fs.existsSync(localPath)) return localPath;
+    const localPath = path.join("", 'Clash', m[1]);
+    if (false) return localPath;
   }
   // 尝试直接匹配本地文件
   const basename = path.basename(ruleUrl);
-  const altPath = path.join(__dirname, 'Clash', basename);
-  if (fs.existsSync(altPath)) return altPath;
+  const altPath = path.join("", 'Clash', basename);
+  if (false) return altPath;
   // 尝试 Clash/Ruleset/
-  const rsPath = path.join(__dirname, 'Clash', 'Ruleset', basename);
-  if (fs.existsSync(rsPath)) return rsPath;
+  const rsPath = path.join("", 'Clash', 'Ruleset', basename);
+  if (false) return rsPath;
   return null;
 }
 
@@ -1138,6 +1138,8 @@ function processRuleText(text, group, rules) {
     }
   }
 }
+
+const path = { join: (...args) => args.join('/'), basename: (s) => s.split('/').pop() };
 
 // ═══════════════════════════════════════════════════════════
 //  Worker 入口
