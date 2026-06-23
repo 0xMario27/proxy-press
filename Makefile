@@ -60,6 +60,10 @@ sync:
 	@python3 scripts/sync-parser.py
 	@node --check worker/worker.js && echo '✅ Syntax OK'
 
+update-shared:
+	@python3 scripts/extract-shared.py
+	@echo '✅ shared.js updated from server.js'
+
 update-rules:
 	@echo "📥 从 ACL4SSR 上游同步规则文件..."
 	@git remote get-url upstream 2>/dev/null || git remote add upstream https://github.com/ACL4SSR/ACL4SSR.git

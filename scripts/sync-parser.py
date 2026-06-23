@@ -1,60 +1,40 @@
 #!/usr/bin/env python3
-"""同步 sub-converter-parser.js + server.js → worker/worker.js"""
+"""稳定同步：parser + shared → worker/worker.js"""
 import re
 
-# 1. Parser
-parser = open('sub-converter-parser.js').read()
-parser = parser.replace("'use strict';\n\n", "")
-parser = re.sub(r'\nmodule\.exports\s*=\s*\{[^}]+\};', '', parser, flags=re.DOTALL)
-parser = parser.replace("return Buffer.from(str, 'base64').toString('utf-8');", "return atob(str);")
-parser = parser.replace("Buffer.from(str.replace(/\\s/g, ''), 'base64').toString('utf-8')", "atob(str.replace(/\\s/g, ''))")
+# 1. Parser（来自 sub-converter-parser.js）
+p = open('sub-converter-parser.js').read()
+p = p.replace("'use strict';\n\n", "")
+p = re.sub(r'\nmodule\.exports\s*=\s*\{[^}]+\};', '', p, flags=re.DOTALL)
+p = p.replace("return Buffer.from(str, 'base64').toString('utf-8');", "return atob(str);")
+p = p.replace("Buffer.from(str.replace(/\\s/g, ''), 'base64').toString('utf-8')", "atob(str.replace(/\\s/g, ''))")
 
-# 2. Server.js 核心逻辑（常量 → HTTP 请求处理 之前）
-server = open('server.js').read()
-# 找起始: "常量" 注释块
-start = server.find('常量')
-start = server.rfind('// ═', 0, start) if '常量' in server else server.find('REGION_MAP')
-# 找结束: "HTTP 请求处理" 注释块
-end = server.find('HTTP 请求处理')
-end = server.rfind('// ═', 0, end) if 'HTTP 请求处理' in server else len(server)
-server_core = server[start:end].strip()
-# 移除不应包含的部分（由 Worker 网络层提供）
-server_core = re.sub(r'(async\s+)?function fetchText\([^)]*\).*?^\}', '', server_core, flags=re.MULTILINE | re.DOTALL)
-server_core = re.sub(r'(async\s+)?function fetchAndParseSub\([^)]*\).*?^\}', '', server_core, flags=re.MULTILINE | re.DOTALL)
-# 清理 dangling async/function 关键字
-server_core = re.sub(r'^async\s*$', '', server_core, flags=re.MULTILINE)
-server_core = server_core.replace('__dirname', '""')
-server_core = re.sub(r'fs\.existsSync\([^)]+\)', 'false', server_core)
-server_core = re.sub(r'fs\.readFileSync\([^)]+\)', '""', server_core)
-server_core = server_core.replace('process.env.PORT', '25600')
-server_core = server_core.replace('process.env.HOST_IP', '"localhost"')
-# 添加 path polyfill 到 worker
-path_polyfill = "const path = { join: (...args) => args.join('/'), basename: (s) => s.split('/').pop() };"
+# 2. Shared（来自 shared.js，由 server.js 独立维护）
+s = open('shared.js').read()
 
-# 3. 构建 Worker（无重复函数）
+# 3. Worker 网络层
 worker = f"""/**
- * ProxyPress Worker v6 — 与本地 server.js 完全一致
- * make sync 自动同步 parser + config 构建逻辑
+ * ProxyPress Worker v7 — 稳定同步（parser + shared.js）
  */
 
 // ═══════════════════════════════════════════════════════════
 //  Parser（来自 sub-converter-parser.js）
 // ═══════════════════════════════════════════════════════════
 
-{parser}
+{p}
 
 // ═══════════════════════════════════════════════════════════
-//  Config 构建逻辑（来自 server.js，与本地完全一致）
+//  Shared logic（来自 shared.js，与 server.js 共用）
 // ═══════════════════════════════════════════════════════════
 
-// Worker polyfills（Node.js API → 浏览器兼容）
-{path_polyfill}
-
-{server_core}
+const path = {{ join: (...args) => args.join('/'), basename: (s) => s.split('/').pop() }};
+{s}
 
 // ═══════════════════════════════════════════════════════════
 //  Worker 入口
 // ═══════════════════════════════════════════════════════════
+
+const CONFIG_BASE = 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/';
 
 async function fetchText(url, timeout = 30000) {{
   const ctrl = new AbortController();
@@ -65,8 +45,6 @@ async function fetchText(url, timeout = 30000) {{
     return await r.text();
   }} finally {{ clearTimeout(t); }}
 }}
-
-const CONFIG_BASE = 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/';
 
 export default {{
   async fetch(request) {{
@@ -90,8 +68,7 @@ export default {{
       if (!lu) return new Response('Missing url', {{ status: 400 }});
       const nodes = await fetchAndParseSub(lu);
       enhanceNodes(nodes);
-      const y = ['proxies:'];
-      for (const n of nodes) y.push(formatNodeCompact(n));
+      const y = ['proxies:']; for (const n of nodes) y.push(formatNodeCompact(n));
       return new Response(y.join('\\n'), {{ headers: {{ 'Content-Type':'text/plain','Access-Control-Allow-Origin':'*','Cache-Control':'public, max-age=300' }} }});
     }}
 
@@ -126,7 +103,7 @@ export default {{
       }} catch(e) {{ return new Response('Error: ' + e.message, {{ status: 502 }}); }}
     }}
 
-    return new Response('ProxyPress v6', {{ status: 404 }});
+    return new Response('ProxyPress v7', {{ status: 404 }});
   }}
 }};
 
@@ -143,5 +120,5 @@ async function fetchAndParseSub(subUrl) {{
 """
 
 open('worker/worker.js', 'w').write(worker)
-open('worker/parser.js', 'w').write(parser)
+open('worker/parser.js', 'w').write(p)
 print(f'✅ Synced ({len(worker)} chars)')

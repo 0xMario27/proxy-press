@@ -1,6 +1,5 @@
 /**
- * ProxyPress Worker v6 — 与本地 server.js 完全一致
- * make sync 自动同步 parser + config 构建逻辑
+ * ProxyPress Worker v7 — 稳定同步（parser + shared.js）
  */
 
 // ═══════════════════════════════════════════════════════════
@@ -957,21 +956,19 @@ function parseSurgeLike(content) {
 
 
 // ═══════════════════════════════════════════════════════════
-//  Config 构建逻辑（来自 server.js，与本地完全一致）
+//  Shared logic（来自 shared.js，与 server.js 共用）
 // ═══════════════════════════════════════════════════════════
 
-// Worker polyfills（Node.js API → 浏览器兼容）
 const path = { join: (...args) => args.join('/'), basename: (s) => s.split('/').pop() };
-
 // ═══════════════════════════════════════════════════════════
 //  常量
 // ═══════════════════════════════════════════════════════════
 
 const RULE_STORE = new Map();  // hash → YAML 内容
 const BASE_RULES_URL = 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/';
-const CONFIG_DIR = path.join("", 'Clash', 'config');
-const PORT = parseInt(25600 || '25600');
-const HOST_IP = "localhost" || 'localhost';
+const CONFIG_DIR = path.join(__dirname, 'Clash', 'config');
+const PORT = parseInt(process.env.PORT || '25600');
+const HOST_IP = process.env.HOST_IP || 'localhost';
 
 // 区域识别
 const REGION_MAP = [
@@ -1066,7 +1063,7 @@ async function fetchRulesFromConfig(rulesets) {
     if (localRule) {
       promises.push(
         Promise.resolve().then(() => {
-          const text = "";
+          const text = fs.readFileSync(localRule, 'utf-8');
           processRuleText(text, group, rules);
         }).catch(() => {})
       );
@@ -1090,16 +1087,16 @@ function resolveLocalRule(ruleUrl) {
   // 从 GitHub URL 中提取文件名，查找本地 Clash/ 目录
   const m = ruleUrl.match(/Clash\/(.+)/);
   if (m) {
-    const localPath = path.join("", 'Clash', m[1]);
-    if (false) return localPath;
+    const localPath = path.join(__dirname, 'Clash', m[1]);
+    if (fs.existsSync(localPath)) return localPath;
   }
   // 尝试直接匹配本地文件
   const basename = path.basename(ruleUrl);
-  const altPath = path.join("", 'Clash', basename);
-  if (false) return altPath;
+  const altPath = path.join(__dirname, 'Clash', basename);
+  if (fs.existsSync(altPath)) return altPath;
   // 尝试 Clash/Ruleset/
-  const rsPath = path.join("", 'Clash', 'Ruleset', basename);
-  if (false) return rsPath;
+  const rsPath = path.join(__dirname, 'Clash', 'Ruleset', basename);
+  if (fs.existsSync(rsPath)) return rsPath;
   return null;
 }
 
@@ -1505,9 +1502,13 @@ function buildRules(ruleData) {
   return lines;
 }
 
+
+
 // ═══════════════════════════════════════════════════════════
 //  Worker 入口
 // ═══════════════════════════════════════════════════════════
+
+const CONFIG_BASE = 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/';
 
 async function fetchText(url, timeout = 30000) {
   const ctrl = new AbortController();
@@ -1518,8 +1519,6 @@ async function fetchText(url, timeout = 30000) {
     return await r.text();
   } finally { clearTimeout(t); }
 }
-
-const CONFIG_BASE = 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/';
 
 export default {
   async fetch(request) {
@@ -1543,8 +1542,7 @@ export default {
       if (!lu) return new Response('Missing url', { status: 400 });
       const nodes = await fetchAndParseSub(lu);
       enhanceNodes(nodes);
-      const y = ['proxies:'];
-      for (const n of nodes) y.push(formatNodeCompact(n));
+      const y = ['proxies:']; for (const n of nodes) y.push(formatNodeCompact(n));
       return new Response(y.join('\n'), { headers: { 'Content-Type':'text/plain','Access-Control-Allow-Origin':'*','Cache-Control':'public, max-age=300' } });
     }
 
@@ -1579,7 +1577,7 @@ export default {
       } catch(e) { return new Response('Error: ' + e.message, { status: 502 }); }
     }
 
-    return new Response('ProxyPress v6', { status: 404 });
+    return new Response('ProxyPress v7', { status: 404 });
   }
 };
 
