@@ -526,6 +526,15 @@ function addTargetGroups(lines, regionSet) {
       lines.push(`  - name: ${t}`, '    type: select', '    proxies:', '      - DIRECT', '      - 🚀 节点选择');
     } else if (t === '🛑 广告拦截' || t === '🍃 应用净化') {
       lines.push(`  - name: ${t}`, '    type: select', '    proxies:', '      - REJECT', '      - DIRECT');
+    } else if (t === '🌏 国内媒体' || t === '📺 哔哩哔哩' || t === '🎶 网易音乐'
+               || t === 'Ⓜ️ 微软Bing' || t === 'Ⓜ️ 微软云盘' || t === 'Ⓜ️ 微软服务'
+               || t === '🍎 苹果服务') {
+      // 国内/有国内CDN的服务默认直连
+      lines.push(`  - name: ${t}`, '    type: select', '    proxies:');
+      lines.push('      - DIRECT');
+      lines.push('      - 🚀 节点选择');
+      lines.push('      - ♻️ 自动选择');
+      for (const gn of regionGroupNames) lines.push(`      - ${gn}`);
     } else {
       // 其他组: 节点选择 + 自动选择 + 各地区组 + DIRECT
       lines.push(`  - name: ${t}`, '    type: select', '    proxies:');
