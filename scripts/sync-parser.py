@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""稳定同步：parser + shared → worker/worker.js"""
+"""稳定同步：parser + shared → worker/worker.js
+
+对 shared.js 做 Worker 兼容转换：
+  - Buffer.from → atob()
+  - 替换 resolveLocalRule（Worker 无本地文件）
+  - 替换 fetchRulesFromConfig（移除 fs 调用）
+  - __dirname → ''
+  - process.env → 默认值
+"""
 import re
 
 # 1. Parser（来自 backend/parser.js）
@@ -9,22 +17,61 @@ p = re.sub(r'\nmodule\.exports\s*=\s*\{[^}]+\};', '', p, flags=re.DOTALL)
 p = p.replace("return Buffer.from(str, 'base64').toString('utf-8');", "return atob(str);")
 p = p.replace("Buffer.from(str.replace(/\\s/g, ''), 'base64').toString('utf-8')", "atob(str.replace(/\\s/g, ''))")
 
-# 2. Shared（来自 backend/shared.js，与 server.js 共用）
+# 2. Shared（来自 backend/shared.js，做 Worker 兼容转换）
 s = open('backend/shared.js').read()
+
+# 2a. Buffer → atob
+s = s.replace("return Buffer.from(str.replace(/\\s/g, ''), 'base64').toString('utf-8');", "return atob(str.replace(/\\s/g, ''));")
+
+# 2b. 移除不需要的常量
+s = re.sub(r'const CONFIG_DIR = .*\n', '', s)
+s = re.sub(r'const PORT = .*\n', '', s)
+s = re.sub(r'const HOST_IP = .*\n', '', s)
+
+# 2c. __dirname → ''
+s = s.replace('__dirname', "''")
+
+# 2d. 替换 resolveLocalRule 为 Worker 安全版
+OLD_RESOLVE = r'function resolveLocalRule\(ruleUrl\) \{.*?\n\}'
+NEW_RESOLVE = 'function resolveLocalRule(ruleUrl) { return null; } /* Worker: no local fs */'
+s = re.sub(OLD_RESOLVE, NEW_RESOLVE, s, flags=re.DOTALL)
+
+# 2e. 替换 fetchRulesFromConfig 为 Worker 安全版（纯远程获取）
+OLD_FETCH_RULES = r'async function fetchRulesFromConfig\(rulesets\) \{.*?\n\}'
+NEW_FETCH_RULES = '''async function fetchRulesFromConfig(rulesets) {
+  const rules = [];
+  const promises = [];
+  for (const { group, url: ruleUrl } of rulesets) {
+    const fullUrl = ruleUrl.startsWith('http') ? ruleUrl : (BASE_RULES_URL + ruleUrl.replace(/^Clash\\//, ''));
+    promises.push(
+      fetchText(fullUrl, 10000).then(text => {
+        processRuleText(text, group, rules);
+      }).catch(() => {})
+    );
+  }
+  await Promise.all(promises);
+  rules.push({ group: '🎯 全球直连', line: 'GEOIP,CN,🎯 全球直连' });
+  rules.push({ group: '🐟 漏网之鱼', line: 'MATCH,🐟 漏网之鱼' });
+  return rules;
+}'''
+s = re.sub(OLD_FETCH_RULES, NEW_FETCH_RULES, s, flags=re.DOTALL)
+
+# 2f. 移除残留的 fs 引用（防御性）
+s = re.sub(r'\bfs\.\w+\([^)]*\);?', '/* fs removed */', s)
 
 # 3. Worker 网络层
 worker = f"""/**
- * ProxyPress Worker v7 — 稳定同步（parser + shared.js）
+ * ProxyPress Worker v8 — 稳定同步（parser + shared.js）
  */
 
 // ═══════════════════════════════════════════════════════════
-//  Parser（来自 sub-converter-parser.js）
+//  Parser（来自 backend/parser.js）
 // ═══════════════════════════════════════════════════════════
 
 {p}
 
 // ═══════════════════════════════════════════════════════════
-//  Shared logic（来自 shared.js，与 server.js 共用）
+//  Shared logic（来自 backend/shared.js，Worker 兼容转换）
 // ═══════════════════════════════════════════════════════════
 
 const path = {{ join: (...args) => args.join('/'), basename: (s) => s.split('/').pop() }};
@@ -103,7 +150,7 @@ export default {{
       }} catch(e) {{ return new Response('Error: ' + e.message, {{ status: 502 }}); }}
     }}
 
-    return new Response('ProxyPress v7', {{ status: 404 }});
+    return new Response('ProxyPress v8', {{ status: 404 }});
   }}
 }};
 

@@ -1,9 +1,9 @@
 /**
- * ProxyPress Worker v7 — 稳定同步（parser + shared.js）
+ * ProxyPress Worker v8 — 稳定同步（parser + shared.js）
  */
 
 // ═══════════════════════════════════════════════════════════
-//  Parser（来自 sub-converter-parser.js）
+//  Parser（来自 backend/parser.js）
 // ═══════════════════════════════════════════════════════════
 
 /**
@@ -956,7 +956,7 @@ function parseSurgeLike(content) {
 
 
 // ═══════════════════════════════════════════════════════════
-//  Shared logic（来自 shared.js，与 server.js 共用）
+//  Shared logic（来自 backend/shared.js，Worker 兼容转换）
 // ═══════════════════════════════════════════════════════════
 
 const path = { join: (...args) => args.join('/'), basename: (s) => s.split('/').pop() };
@@ -966,9 +966,6 @@ const path = { join: (...args) => args.join('/'), basename: (s) => s.split('/').
 
 const RULE_STORE = new Map();  // hash → YAML 内容
 const BASE_RULES_URL = 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/';
-const CONFIG_DIR = path.join(__dirname, 'Clash', 'config');
-const PORT = parseInt(process.env.PORT || '25600');
-const HOST_IP = process.env.HOST_IP || 'localhost';
 
 // 区域识别
 const REGION_MAP = [
@@ -992,7 +989,7 @@ function isBase64(str) {
 }
 
 function base64Decode(str) {
-  try { return Buffer.from(str.replace(/\s/g, ''), 'base64').toString('utf-8'); }
+  try { return atob(str.replace(/\s/g, '')); }
   catch { return str; }
 }
 
@@ -1058,24 +1055,12 @@ async function fetchRulesFromConfig(rulesets) {
   const rules = [];
   const promises = [];
   for (const { group, url: ruleUrl } of rulesets) {
-    // 尝试从本地 Clash/ 目录加载
-    const localRule = resolveLocalRule(ruleUrl);
-    if (localRule) {
-      promises.push(
-        Promise.resolve().then(() => {
-          const text = fs.readFileSync(localRule, 'utf-8');
-          processRuleText(text, group, rules);
-        }).catch(() => {})
-      );
-    } else {
-      // 回退到远程获取
-      const fullUrl = ruleUrl.startsWith('http') ? ruleUrl : (BASE_RULES_URL + ruleUrl.replace(/^Clash\//, ''));
-      promises.push(
-        fetchText(fullUrl, 10000).then(text => {
-          processRuleText(text, group, rules);
-        }).catch(() => {})
-      );
-    }
+    const fullUrl = ruleUrl.startsWith('http') ? ruleUrl : (BASE_RULES_URL + ruleUrl.replace(/^Clash\//, ''));
+    promises.push(
+      fetchText(fullUrl, 10000).then(text => {
+        processRuleText(text, group, rules);
+      }).catch(() => {})
+    );
   }
   await Promise.all(promises);
   rules.push({ group: '🎯 全球直连', line: 'GEOIP,CN,🎯 全球直连' });
@@ -1083,22 +1068,7 @@ async function fetchRulesFromConfig(rulesets) {
   return rules;
 }
 
-function resolveLocalRule(ruleUrl) {
-  // 从 GitHub URL 中提取文件名，查找本地 Clash/ 目录
-  const m = ruleUrl.match(/Clash\/(.+)/);
-  if (m) {
-    const localPath = path.join(__dirname, 'Clash', m[1]);
-    if (fs.existsSync(localPath)) return localPath;
-  }
-  // 尝试直接匹配本地文件
-  const basename = path.basename(ruleUrl);
-  const altPath = path.join(__dirname, 'Clash', basename);
-  if (fs.existsSync(altPath)) return altPath;
-  // 尝试 Clash/Ruleset/
-  const rsPath = path.join(__dirname, 'Clash', 'Ruleset', basename);
-  if (fs.existsSync(rsPath)) return rsPath;
-  return null;
-}
+function resolveLocalRule(ruleUrl) { return null; } /* Worker: no local fs */
 
 function processRuleText(text, group, rules) {
   // 过滤明显的 HTTP 错误页面内容
@@ -1577,7 +1547,7 @@ export default {
       } catch(e) { return new Response('Error: ' + e.message, { status: 502 }); }
     }
 
-    return new Response('ProxyPress v7', { status: 404 });
+    return new Response('ProxyPress v8', { status: 404 });
   }
 };
 
