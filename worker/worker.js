@@ -1542,32 +1542,28 @@ function formatNodeRawUri(n) {
 // ═══════════════════════════════════════════════════════════
 
 function formatRuleSurge(ruleLine) {
-  // Clash: RULE-TYPE,value,group  →  Surge: RULE-TYPE,value,group
-  // 基本相同，但有些类型名不同
   const parts = ruleLine.split(',');
-  let [type, ...rest] = parts;
+  let [type, value, ...rest] = parts;
   type = type.trim().toUpperCase();
 
-  // Surge 规则类型映射
+  // 提取 no-resolve（Clash 格式: TYPE,value,no-resolve,policy → Surge: TYPE,value,policy,no-resolve）
+  let noResolve = false;
+  rest = rest.filter(r => {
+    if (r.trim() === 'no-resolve') { noResolve = true; return false; }
+    return true;
+  });
+
   const typeMap = {
-    'DOMAIN-SUFFIX': 'DOMAIN-SUFFIX',
-    'DOMAIN-KEYWORD': 'DOMAIN-KEYWORD',
-    'DOMAIN': 'DOMAIN',
-    'IP-CIDR': 'IP-CIDR',
-    'IP-CIDR6': 'IP-CIDR6',
-    'GEOIP': 'GEOIP',
-    'MATCH': 'FINAL',
-    'RULE-SET': 'RULE-SET',
-    'DST-PORT': 'DST-PORT',
-    'SRC-PORT': 'SRC-PORT',
-    'PROCESS-NAME': 'PROCESS-NAME',
-    'URL-REGEX': 'URL-REGEX',
-    'AND': 'AND',
-    'OR': 'OR',
-    'NOT': 'NOT',
+    'DOMAIN-SUFFIX': 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD': 'DOMAIN-KEYWORD',
+    'DOMAIN': 'DOMAIN', 'IP-CIDR': 'IP-CIDR', 'IP-CIDR6': 'IP-CIDR6',
+    'GEOIP': 'GEOIP', 'MATCH': 'FINAL', 'RULE-SET': 'RULE-SET',
+    'DST-PORT': 'DST-PORT', 'SRC-PORT': 'SRC-PORT',
+    'PROCESS-NAME': 'PROCESS-NAME', 'URL-REGEX': 'URL-REGEX',
+    'AND': 'AND', 'OR': 'OR', 'NOT': 'NOT',
   };
   const surgeType = typeMap[type] || type;
-  return `${surgeType},${rest.join(',')}`;
+  const result = `${surgeType},${value},${rest.join(',')}`;
+  return noResolve ? result + ',no-resolve' : result;
 }
 
 function formatRuleQuanX(ruleLine) {

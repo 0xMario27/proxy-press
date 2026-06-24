@@ -610,6 +610,16 @@ p { font-size: 14px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
   border-radius: 0 !important; border-color: #ccc !important;
   font-family: "Courier New", monospace !important;
 }
+/* 去除 popper 默认样式 */
+>>> .el-select-dropdown.el-popper {
+  padding: 0 !important; border-radius: 0 !important;
+  box-shadow: 3px 3px 0 rgba(0,0,0,0.12) !important;
+}
+>>> .el-popper .popper__arrow, >>> .el-popper .popper__arrow::after {
+  display: none !important;
+}
+>>> .el-select-dropdown__wrap { padding: 0 !important; }
+>>> .el-scrollbar__wrap { margin-bottom: 0 !important; overflow-x: hidden !important; }
 
 /* 多选框 */
 >>> .el-checkbox.is-bordered {
