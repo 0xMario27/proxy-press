@@ -2,7 +2,7 @@
 """从 server.js 提取共享逻辑 → shared.js"""
 import re
 
-server = open('server.js').read()
+server = open('backend/server.js').read()
 
 start = server.find('常量')
 start = server.rfind('// ═', 0, start)
@@ -15,5 +15,5 @@ shared = re.sub(r'(async\s+)?function fetchText\([^)]*\).*?^\}', '', shared, fla
 shared = re.sub(r'(async\s+)?function fetchAndParseSub\([^)]*\).*?^\}', '', shared, flags=re.MULTILINE | re.DOTALL)
 shared = re.sub(r'^async\s*$', '', shared, flags=re.MULTILINE)
 
-open('shared.js', 'w').write(shared)
+open('backend/shared.js', 'w').write(shared)
 print(f'✅ shared.js updated ({len(shared)} chars)')

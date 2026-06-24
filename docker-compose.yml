@@ -2,7 +2,7 @@ services:
   # ========== 纯 JS 订阅转换引擎（替代 subconverter + sub-smart）==========
   sub-smart-js:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     container_name: sub-smart-js
     restart: unless-stopped
@@ -11,7 +11,7 @@ services:
     environment:
       - HOST_IP=${HOST_IP:-localhost}
     volumes:
-      - ./Clash:/app/Clash
+      - ./backend/Clash:/app/Clash
 
   # ========== 前端 ==========
   sub-web:

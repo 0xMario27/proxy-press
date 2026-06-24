@@ -23,7 +23,7 @@ const fs = require('fs');
 const path = require('path');
 
 // ─── 内联 parser（或 require 外部模块） ───
-const { parseSubscription } = require('./sub-converter-parser.js');
+const { parseSubscription } = require('./parser.js');
 
 // ═══════════════════════════════════════════════════════════
 //  常量

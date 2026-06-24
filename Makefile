@@ -68,8 +68,8 @@ update-rules:
 	@echo "📥 从 ACL4SSR 上游同步规则文件..."
 	@git remote get-url upstream 2>/dev/null || git remote add upstream https://github.com/ACL4SSR/ACL4SSR.git
 	@git fetch upstream master
-	@git checkout upstream/master -- Clash/ Acl/ Tool/ 2>/dev/null
-	@echo "✅ 规则已更新（Clash/ Acl/ Tool/）"
+	@git checkout upstream/master -- backend/Clash/ rules/Acl/ rules/Tool/ 2>/dev/null
+	@echo "✅ 规则已更新（backend/Clash/ rules/Acl/ rules/Tool/）"
 	@echo "⚠️  检查 git diff 后 commit 即可"
 
 help:

@@ -2,15 +2,15 @@
 """稳定同步：parser + shared → worker/worker.js"""
 import re
 
-# 1. Parser（来自 sub-converter-parser.js）
-p = open('sub-converter-parser.js').read()
+# 1. Parser（来自 backend/parser.js）
+p = open('backend/parser.js').read()
 p = p.replace("'use strict';\n\n", "")
 p = re.sub(r'\nmodule\.exports\s*=\s*\{[^}]+\};', '', p, flags=re.DOTALL)
 p = p.replace("return Buffer.from(str, 'base64').toString('utf-8');", "return atob(str);")
 p = p.replace("Buffer.from(str.replace(/\\s/g, ''), 'base64').toString('utf-8')", "atob(str.replace(/\\s/g, ''))")
 
-# 2. Shared（来自 shared.js，由 server.js 独立维护）
-s = open('shared.js').read()
+# 2. Shared（来自 backend/shared.js，与 server.js 共用）
+s = open('backend/shared.js').read()
 
 # 3. Worker 网络层
 worker = f"""/**
