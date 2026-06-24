@@ -2,8 +2,8 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# 复制 server 和 parser
-COPY server.js parser.js ./
+# 复制 server + 所有依赖模块
+COPY server.js parser.js shared.js formats.js ./
 
 # 可选：复制本地规则配置
 COPY Clash/ ./Clash/

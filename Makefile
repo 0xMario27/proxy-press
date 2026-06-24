@@ -1,5 +1,9 @@
 .PHONY: up down restart status build rebuild logs clean help
 
+# 加载 .env 文件（如果存在）
+-include .env
+export CLOUDFLARE_API_TOKEN
+
 up:
 	@echo "🚀 启动..."
 	docker compose up -d

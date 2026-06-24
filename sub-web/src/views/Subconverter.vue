@@ -547,14 +547,84 @@ p { font-size: 14px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
 }
 .telegram-close:hover { color: #1a1a1a; }
 
-/* 全局覆盖 */
+/* 全局覆盖 — 报纸风格统一 */
 >>> .el-input__inner, >>> .el-textarea__inner {
   border-radius: 0 !important; border: 1px solid #999 !important;
   background: #fff !important; font-family: "Courier New", monospace !important; font-size: 13px;
+  color: #1a1a1a !important;
 }
->>> .el-checkbox.is-bordered { border-radius: 0 !important; background: #fff; border: 1px solid #ccc !important; }
->>> .el-checkbox.is-checked { border-color: #1a1a1a !important; }
->>> .el-checkbox__label { font-size: 12px; }
+>>> .el-input__inner:hover, >>> .el-textarea__inner:hover { border-color: #555 !important; }
+>>> .el-input__inner:focus, >>> .el-textarea__inner:focus { border-color: #1a1a1a !important; box-shadow: none !important; }
+
+/* 下拉选择器触发框 */
+>>> .el-select .el-input__inner {
+  background: #fff !important;
+}
+>>> .el-select .el-input__suffix { color: #555 !important; }
+>>> .el-select .el-input .el-select__caret {
+  color: #555 !important; font-size: 12px !important;
+  transition: transform 0.2s ease;
+}
+>>> .el-select .el-input.is-focus .el-select__caret { transform: rotate(180deg); color: #1a1a1a !important; }
+
+/* 下拉面板 */
+>>> .el-select-dropdown {
+  border: 1px solid #1a1a1a !important; border-radius: 0 !important;
+  background: #fefdf8 !important;
+  box-shadow: 3px 3px 0 rgba(0,0,0,0.12) !important;
+}
+>>> .el-select-dropdown__item {
+  font-family: "Courier New", monospace !important; font-size: 12px !important;
+  color: #333 !important; padding: 7px 12px !important;
+  border-bottom: 1px dotted #e0ddd5;
+}
+>>> .el-select-dropdown__item:last-child { border-bottom: none; }
+>>> .el-select-dropdown__item:hover {
+  background: #f5f0e8 !important; color: #1a1a1a !important;
+}
+>>> .el-select-dropdown__item.is-selected {
+  background: #1a1a1a !important; color: #f5f0e8 !important; font-weight: bold;
+}
+>>> .el-select-dropdown__item.is-hovering, >>> .el-select-dropdown__item.hover {
+  background: #f5f0e8 !important;
+}
+/* 选项分组标题 */
+>>> .el-select-group__title {
+  font-family: "Helvetica Neue", Arial, sans-serif !important;
+  font-size: 9px !important; font-weight: 900 !important;
+  letter-spacing: 2px !important; color: #888 !important;
+  text-transform: uppercase; padding: 6px 12px 2px !important;
+  background: #faf8f3 !important; border-bottom: 1px solid #e0ddd5;
+}
+
+/* 多选框 */
+>>> .el-checkbox.is-bordered {
+  border-radius: 0 !important; background: #fff;
+  border: 1px solid #ccc !important; padding: 6px 10px !important;
+}
+>>> .el-checkbox.is-bordered:hover { border-color: #888 !important; background: #faf8f3 !important; }
+>>> .el-checkbox.is-checked {
+  border-color: #1a1a1a !important; background: #fefdf8 !important;
+}
+>>> .el-checkbox.is-checked .el-checkbox__label { color: #1a1a1a !important; font-weight: bold; }
+>>> .el-checkbox__label { font-size: 12px; font-family: "Courier New", monospace !important; }
+>>> .el-checkbox__inner {
+  border-radius: 0 !important; border: 1px solid #555 !important;
+  background: #fff !important;
+}
+>>> .el-checkbox__inner:hover { border-color: #1a1a1a !important; }
+>>> .el-checkbox.is-checked .el-checkbox__inner {
+  background: #1a1a1a !important; border-color: #1a1a1a !important;
+}
+>>> .el-checkbox__inner::after {
+  border-color: #f5f0e8 !important;
+  border-width: 2px !important;
+}
+
+/* 输入框 placeholder */
+>>> .el-input__inner::placeholder, >>> .el-textarea__inner::placeholder {
+  color: #bbb !important; font-style: italic; font-family: "Georgia", serif !important;
+}
 
 /* 🪄 Harry Potter magic effects */
 .magic-particles { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }

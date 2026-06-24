@@ -20,6 +20,7 @@ const path = require('path');
 
 // ─── 业务逻辑 ───
 const { parseSubscription } = require('./parser.js');
+const { buildConfigForTarget } = require('./formats.js');
 const {
   RULE_STORE, BASE_RULES_URL, REGION_MAP,
   isBase64, base64Decode,
@@ -197,6 +198,7 @@ async function handleRequest(req, res) {
       if (!subUrl) return respond(res, 400, 'Missing url param');
 
       const mode = params.mode || 'provider';
+      const target = params.target || 'clash';
       const configFile = params.config || '';
 
       const nodes = await fetchAndParseSub(subUrl);
@@ -237,6 +239,14 @@ async function handleRequest(req, res) {
 
       const proto = req.headers['x-forwarded-proto'] || 'http';
       const host = `${proto}://${req.headers.host || `${HOST_IP}:${PORT}`}`;
+
+      // 非 Clash 目标：使用 formats.js 输出
+      const altConfig = buildConfigForTarget(target, nodes, ruleData, host, subUrl);
+      if (altConfig) {
+        return respond(res, 200, altConfig);
+      }
+
+      // Clash 系
       const result = (mode === 'provider')
         ? buildProviderConfig(nodes, ruleData, host, subUrl)
         : buildInlineConfig(nodes, ruleData, host);

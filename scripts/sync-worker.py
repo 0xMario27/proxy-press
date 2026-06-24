@@ -1,67 +1,32 @@
 #!/usr/bin/env python3
-"""sync-worker.py — 从 backend/{parser,shared,server}.js 生成 worker/worker.js
+"""sync-worker.py — parser.js + shared.js + formats.js → worker/worker.js"""
 
-读取 parser.js + shared.js（业务逻辑）+ server.js（HTTP 层模式），
-做 Worker 兼容转换后输出单文件。
-"""
 import re
-
-# ═══════════════════════════════════════════════════════════
-#  0. 工具函数
-# ═══════════════════════════════════════════════════════════
-
-def workerify(code):
-    """Buffer → atob, 清除 module.exports / use strict / console"""
-    # Buffer.from(X, 'base64').toString('utf-8') → atob(X)
-    code = re.sub(
-        r"Buffer\.from\((.+?),\s*'base64'\)\.toString\('utf-8'\)",
-        r"atob(\1)", code
-    )
-    code = re.sub(r'\nmodule\.exports\s*=\s*\{[^}]+\};', '', code, flags=re.DOTALL)
-    code = re.sub(r"^'use strict';\n\n", '', code)
-    code = re.sub(r'^\s*console\.(?:log|error)\([^)]*\);?\n', '', code, flags=re.MULTILINE)
-    return code
-
-
-# ═══════════════════════════════════════════════════════════
-#  1. 读取源文件
-# ═══════════════════════════════════════════════════════════
 
 parser = open('backend/parser.js').read()
 shared = open('backend/shared.js').read()
+formats = open('backend/formats.js').read()
 
-# ═══════════════════════════════════════════════════════════
-#  2. parser.js: 去 boilerplate + Buffer→atob
-# ═══════════════════════════════════════════════════════════
+# ─── parser: strip use strict / module.exports ───
 parser = parser.replace("'use strict';\n\n", "")
 parser = re.sub(r'\nmodule\.exports\s*=\s*\{[^}]+\};', '', parser, flags=re.DOTALL)
-parser = workerify(parser)
 
-# ═══════════════════════════════════════════════════════════
-#  3. shared.js: Worker 兼容转换
-# ═══════════════════════════════════════════════════════════
-
-# 去掉 module.exports
+# ─── shared: strip use strict / module.exports / requires ───
+shared = shared.replace("'use strict';\n\n", "")
 shared = re.sub(r'\nmodule\.exports\s*=\s*\{[\s\S]*?\};', '', shared)
-
-# 去掉平台常量
+shared = re.sub(r"const path = require\('path'\).*\n", '', shared)
+shared = re.sub(r"const fs = require\('fs'\).*\n", '', shared)
 shared = re.sub(r"const CONFIG_DIR = .*;\n", '', shared)
 shared = re.sub(r"const PORT = .*;\n", '', shared)
 shared = re.sub(r"const HOST_IP = .*;\n", '', shared)
-shared = re.sub(r"const path = require\('path'\);.*\n", '', shared)
-shared = re.sub(r"const fs = require\('fs'\);.*\n", '', shared)
-
-# __dirname → ''
 shared = shared.replace("__dirname", "''")
 
-# resolveLocalRule → Worker 安全版
+# shared.js worker compat transforms
 shared = re.sub(
     r'function resolveLocalRule\(ruleUrl\) \{[\s\S]*?^\}',
-    'function resolveLocalRule(ruleUrl) { return null; } /* Worker: no local fs */',
+    'function resolveLocalRule(ruleUrl) { return null; } /* Worker */',
     shared, flags=re.MULTILINE
 )
-
-# fetchRulesFromConfig → 纯远程版
 shared = re.sub(
     r'async function fetchRulesFromConfig\(rulesets\) \{[\s\S]*?^\}',
     '''async function fetchRulesFromConfig(rulesets) {
@@ -69,11 +34,7 @@ shared = re.sub(
   const promises = [];
   for (const { group, url: ruleUrl } of rulesets) {
     const fullUrl = ruleUrl.startsWith('http') ? ruleUrl : (BASE_RULES_URL + ruleUrl.replace(/^Clash\\//, ''));
-    promises.push(
-      fetchText(fullUrl, 10000).then(text => {
-        processRuleText(text, group, rules);
-      }).catch(() => {})
-    );
+    promises.push(fetchText(fullUrl, 10000).then(text => { processRuleText(text, group, rules); }).catch(() => {}));
   }
   await Promise.all(promises);
   rules.push({ group: '🎯 全球直连', line: 'GEOIP,CN,🎯 全球直连' });
@@ -83,35 +44,40 @@ shared = re.sub(
     shared, flags=re.DOTALL
 )
 
-# Buffer → atob（shared.js 中 base64Decode 也有 Buffer）
+# ─── formats: strip module.exports ───
+formats = formats.replace("'use strict';\n\n", "")
+formats = re.sub(r'\nmodule\.exports\s*=\s*\{[^}]+\};', '', formats, flags=re.DOTALL)
+
+# ─── generic workerify ───
+def workerify(code):
+    code = code.replace("return Buffer.from(str, 'base64').toString('utf-8');", "return atob(str);")
+    code = code.replace("try { return Buffer.from(str.replace(/\\s/g, ''), 'base64').toString('utf-8'); }", "try { return atob(str.replace(/\\s/g, '')); }")
+    code = re.sub(r'^\s*console\.(?:log|error)\([^)]*\);?\n', '', code, flags=re.MULTILINE)
+    code = re.sub(r"\bfs\.\w+\([^)]*\);?", '/* fs */', code)
+    return code
+
 shared = workerify(shared)
 
-# ═══════════════════════════════════════════════════════════
-#  4. 组装 Worker
-# ═══════════════════════════════════════════════════════════
-
+# ─── assemble worker ───
 worker = f"""/**
- * ProxyPress Worker — 自动生成自 backend/{{parser,shared}}.js
- * 生成命令: make sync
+ * ProxyPress Worker — auto-generated (make sync)
  */
 
-// ═══════════════════════════════════════════════════════════
-//  Parser（backend/parser.js）
-// ═══════════════════════════════════════════════════════════
+// ═══ Parser (backend/parser.js) ═══
 
 {parser}
 
-// ═══════════════════════════════════════════════════════════
-//  Business logic（backend/shared.js，Worker 兼容转换）
-// ═══════════════════════════════════════════════════════════
+// ═══ Shared logic (backend/shared.js, worker compat) ═══
 
 const path = {{ join: (...args) => args.join('/'), basename: (s) => s.split('/').pop() }};
 
 {shared}
 
-// ═══════════════════════════════════════════════════════════
-//  Worker 平台适配
-// ═══════════════════════════════════════════════════════════
+// ═══ Formats (backend/formats.js) ═══
+
+{formats}
+
+// ═══ Worker platform ═══
 
 const CONFIG_BASE = 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/';
 
@@ -119,7 +85,7 @@ async function fetchText(url, timeout = 30000) {{
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeout);
   try {{
-    const r = await fetch(url, {{ headers: {{ 'User-Agent': 'sub-smart-js/1.0', 'Accept': '*/*' }}, signal: ctrl.signal }});
+    const r = await fetch(url, {{ headers: {{ 'User-Agent':'sub-smart-js/1.0','Accept':'*/*' }}, signal: ctrl.signal }});
     if (r.status >= 400) throw new Error('HTTP ' + r.status);
     return await r.text();
   }} finally {{ clearTimeout(t); }}
@@ -136,9 +102,7 @@ async function fetchAndParseSub(subUrl) {{
   return parseSubscription(body);
 }}
 
-// ═══════════════════════════════════════════════════════════
-//  HTTP 入口（对标 backend/server.js 的 handleRequest）
-// ═══════════════════════════════════════════════════════════
+// ═══ Entry ═══
 
 export default {{
   async fetch(request) {{
@@ -164,6 +128,12 @@ export default {{
       if (!lu) return new Response('Missing url', {{ status: 400 }});
       const nodes = await fetchAndParseSub(lu);
       enhanceNodes(nodes);
+      // 根据 target 参数选择格式
+      const tgt = u.searchParams.get('target') || 'clash';
+      if (tgt === 'surge' || tgt === 'surfboard') {{
+        const y = []; for (const n of nodes) y.push(formatNodeSurge(n));
+        return new Response(y.join('\\n'), {{ headers: {{ 'Content-Type':'text/plain','Access-Control-Allow-Origin':'*','Cache-Control':'public, max-age=300' }} }});
+      }}
       const y = ['proxies:']; for (const n of nodes) y.push(formatNodeCompact(n));
       return new Response(y.join('\\n'), {{ headers: {{ 'Content-Type':'text/plain','Access-Control-Allow-Origin':'*','Cache-Control':'public, max-age=300' }} }});
     }}
@@ -172,6 +142,7 @@ export default {{
       const subUrl = u.searchParams.get('url');
       if (!subUrl) return new Response('Missing url', {{ status: 400 }});
       const mode = u.searchParams.get('mode') || 'provider';
+      const target = u.searchParams.get('target') || 'clash';
       const configFile = u.searchParams.get('config') || '';
 
       try {{
@@ -194,6 +165,12 @@ export default {{
         }}
 
         const host = u.origin;
+
+        // 非 Clash 目标
+        const altConfig = buildConfigForTarget(target, nodes, ruleData, host, subUrl);
+        if (altConfig) return new Response(altConfig, {{ headers: {{ 'Content-Type':'text/plain; charset=utf-8','Access-Control-Allow-Origin':'*','Cache-Control':'public, max-age=300' }} }});
+
+        // Clash 系
         const r = mode === 'provider' ? buildProviderConfig(nodes, ruleData, host, subUrl) : buildInlineConfig(nodes, ruleData, host);
         return new Response(r, {{ headers: {{ 'Content-Type':'text/plain; charset=utf-8','Access-Control-Allow-Origin':'*','Cache-Control':'public, max-age=300' }} }});
       }} catch(e) {{ return new Response('Error: ' + e.message, {{ status: 502 }}); }}
