@@ -1,12 +1,9 @@
 // ═══════════════════════════════════════════════════════════
-//  常量
+//  常量（平台无关）
 // ═══════════════════════════════════════════════════════════
 
 const RULE_STORE = new Map();  // hash → YAML 内容
 const BASE_RULES_URL = 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/';
-const CONFIG_DIR = path.join(__dirname, 'Clash', 'config');
-const PORT = parseInt(process.env.PORT || '25600');
-const HOST_IP = process.env.HOST_IP || 'localhost';
 
 // 区域识别
 const REGION_MAP = [
@@ -91,52 +88,6 @@ function parseCustomProxyGroups(iniContent) {
 // ═══════════════════════════════════════════════════════════
 //  规则获取
 // ═══════════════════════════════════════════════════════════
-
-async function fetchRulesFromConfig(rulesets) {
-  const rules = [];
-  const promises = [];
-  for (const { group, url: ruleUrl } of rulesets) {
-    // 尝试从本地 Clash/ 目录加载
-    const localRule = resolveLocalRule(ruleUrl);
-    if (localRule) {
-      promises.push(
-        Promise.resolve().then(() => {
-          const text = fs.readFileSync(localRule, 'utf-8');
-          processRuleText(text, group, rules);
-        }).catch(() => {})
-      );
-    } else {
-      // 回退到远程获取
-      const fullUrl = ruleUrl.startsWith('http') ? ruleUrl : (BASE_RULES_URL + ruleUrl.replace(/^Clash\//, ''));
-      promises.push(
-        fetchText(fullUrl, 10000).then(text => {
-          processRuleText(text, group, rules);
-        }).catch(() => {})
-      );
-    }
-  }
-  await Promise.all(promises);
-  rules.push({ group: '🎯 全球直连', line: 'GEOIP,CN,🎯 全球直连' });
-  rules.push({ group: '🐟 漏网之鱼', line: 'MATCH,🐟 漏网之鱼' });
-  return rules;
-}
-
-function resolveLocalRule(ruleUrl) {
-  // 从 GitHub URL 中提取文件名，查找本地 Clash/ 目录
-  const m = ruleUrl.match(/Clash\/(.+)/);
-  if (m) {
-    const localPath = path.join(__dirname, 'Clash', m[1]);
-    if (fs.existsSync(localPath)) return localPath;
-  }
-  // 尝试直接匹配本地文件
-  const basename = path.basename(ruleUrl);
-  const altPath = path.join(__dirname, 'Clash', basename);
-  if (fs.existsSync(altPath)) return altPath;
-  // 尝试 Clash/Ruleset/
-  const rsPath = path.join(__dirname, 'Clash', 'Ruleset', basename);
-  if (fs.existsSync(rsPath)) return rsPath;
-  return null;
-}
 
 function processRuleText(text, group, rules) {
   // 过滤明显的 HTTP 错误页面内容
@@ -539,4 +490,19 @@ function buildRules(ruleData) {
   for (const r of ruleData) lines.push(`  - ${r.line}`);
   return lines;
 }
+
+module.exports = {
+  RULE_STORE, BASE_RULES_URL, REGION_MAP,
+  isBase64, base64Decode,
+  parseRulesets, parseCustomProxyGroups,
+  processRuleText,
+  detectRegion, enhanceNodes,
+  simpleHash, sanitize,
+  formatNodeCompact, formatNodeBlockYaml,
+  buildProviderConfig, buildInlineConfig,
+  buildRuleProviders, buildRuleRefs,
+  quoteYaml,
+  buildGroupsWithProvider, buildGroupsInline,
+  addTargetGroups, buildRules,
+};
 

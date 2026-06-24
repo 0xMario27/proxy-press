@@ -1,9 +1,10 @@
 /**
- * ProxyPress Worker v8 — 稳定同步（parser + shared.js）
+ * ProxyPress Worker — 自动生成自 backend/{parser,shared}.js
+ * 生成命令: make sync
  */
 
 // ═══════════════════════════════════════════════════════════
-//  Parser（来自 backend/parser.js）
+//  Parser（backend/parser.js）
 // ═══════════════════════════════════════════════════════════
 
 /**
@@ -956,12 +957,13 @@ function parseSurgeLike(content) {
 
 
 // ═══════════════════════════════════════════════════════════
-//  Shared logic（来自 backend/shared.js，Worker 兼容转换）
+//  Business logic（backend/shared.js，Worker 兼容转换）
 // ═══════════════════════════════════════════════════════════
 
 const path = { join: (...args) => args.join('/'), basename: (s) => s.split('/').pop() };
+
 // ═══════════════════════════════════════════════════════════
-//  常量
+//  常量（平台无关）
 // ═══════════════════════════════════════════════════════════
 
 const RULE_STORE = new Map();  // hash → YAML 内容
@@ -1050,25 +1052,6 @@ function parseCustomProxyGroups(iniContent) {
 // ═══════════════════════════════════════════════════════════
 //  规则获取
 // ═══════════════════════════════════════════════════════════
-
-async function fetchRulesFromConfig(rulesets) {
-  const rules = [];
-  const promises = [];
-  for (const { group, url: ruleUrl } of rulesets) {
-    const fullUrl = ruleUrl.startsWith('http') ? ruleUrl : (BASE_RULES_URL + ruleUrl.replace(/^Clash\//, ''));
-    promises.push(
-      fetchText(fullUrl, 10000).then(text => {
-        processRuleText(text, group, rules);
-      }).catch(() => {})
-    );
-  }
-  await Promise.all(promises);
-  rules.push({ group: '🎯 全球直连', line: 'GEOIP,CN,🎯 全球直连' });
-  rules.push({ group: '🐟 漏网之鱼', line: 'MATCH,🐟 漏网之鱼' });
-  return rules;
-}
-
-function resolveLocalRule(ruleUrl) { return null; } /* Worker: no local fs */
 
 function processRuleText(text, group, rules) {
   // 过滤明显的 HTTP 错误页面内容
@@ -1474,8 +1457,9 @@ function buildRules(ruleData) {
 
 
 
+
 // ═══════════════════════════════════════════════════════════
-//  Worker 入口
+//  Worker 平台适配
 // ═══════════════════════════════════════════════════════════
 
 const CONFIG_BASE = 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/';
@@ -1485,14 +1469,30 @@ async function fetchText(url, timeout = 30000) {
   const t = setTimeout(() => ctrl.abort(), timeout);
   try {
     const r = await fetch(url, { headers: { 'User-Agent': 'sub-smart-js/1.0', 'Accept': '*/*' }, signal: ctrl.signal });
-    if (r.status >= 400) throw new Error(`HTTP ${r.status}`);
+    if (r.status >= 400) throw new Error('HTTP ' + r.status);
     return await r.text();
   } finally { clearTimeout(t); }
 }
 
+async function fetchAndParseSub(subUrl) {
+  if (!/^https?:\/\//.test(subUrl)) {
+    let body = decodeURIComponent(subUrl);
+    if (isBase64(body) && !body.includes('://')) { const d = base64Decode(body); if (d.includes('://') || d.includes(' = ')) body = d; }
+    return parseSubscription(body);
+  }
+  let body = await fetchText(subUrl);
+  if (isBase64(body) && !body.includes('://')) { const d = base64Decode(body); if (d.includes('://')) body = d; }
+  return parseSubscription(body);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HTTP 入口（对标 backend/server.js 的 handleRequest）
+// ═══════════════════════════════════════════════════════════
+
 export default {
   async fetch(request) {
     const u = new URL(request.url), p = u.pathname;
+
     if (p === '/health') return new Response('OK');
     if (p === '/version') return new Response('sub-smart-js v1.0');
 
@@ -1504,7 +1504,8 @@ export default {
     if (p.startsWith('/rules/') && p.endsWith('.yaml')) {
       const h = p.split('/rules/')[1].replace('.yaml','');
       const c = RULE_STORE.get(h);
-      return c ? new Response(c, { headers: { 'Content-Type':'text/plain','Access-Control-Allow-Origin':'*','Cache-Control':'public, max-age=86400' } }) : new Response('Not found', { status: 404 });
+      return c ? new Response(c, { headers: { 'Content-Type':'text/plain','Access-Control-Allow-Origin':'*','Cache-Control':'public, max-age=86400' } })
+               : new Response('Not found', { status: 404 });
     }
 
     if (p === '/list') {
@@ -1547,17 +1548,6 @@ export default {
       } catch(e) { return new Response('Error: ' + e.message, { status: 502 }); }
     }
 
-    return new Response('ProxyPress v8', { status: 404 });
+    return new Response('ProxyPress', { status: 404 });
   }
 };
-
-async function fetchAndParseSub(subUrl) {
-  if (!/^https?:\/\//.test(subUrl)) {
-    let body = decodeURIComponent(subUrl);
-    if (isBase64(body) && !body.includes('://')) { const d = base64Decode(body); if (d.includes('://') || d.includes(' = ')) body = d; }
-    return parseSubscription(body);
-  }
-  let body = await fetchText(subUrl);
-  if (isBase64(body) && !body.includes('://')) { const d = base64Decode(body); if (d.includes('://')) body = d; }
-  return parseSubscription(body);
-}

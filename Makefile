@@ -57,12 +57,14 @@ clean-all: clean
 	docker rmi sub-web-local:latest 2>/dev/null; true
 
 sync:
-	@python3 scripts/sync-parser.py
-	@node --check worker/worker.js && echo '✅ Syntax OK'
+	@python3 scripts/sync-worker.py
+	@node --check worker/worker.js && echo '✅ Worker syntax OK'
 
-update-shared:
-	@python3 scripts/extract-shared.py
-	@echo '✅ shared.js updated from server.js'
+deploy-worker:
+	@echo '🚀 推送 Worker 到 Cloudflare...'
+	cd worker && npx wrangler deploy
+
+deploy: sync deploy-worker
 
 update-rules:
 	@echo "📥 从 ACL4SSR 上游同步规则文件..."
@@ -80,4 +82,8 @@ help:
 	@echo "make up / down / restart / status / logs"
 	@echo "make build / rebuild / build-web / restart-web / restart-backend"
 	@echo "make logs-web / logs-backend"
+	@echo "make sync        — 同步生成 worker/worker.js"
+	@echo "make deploy-worker — 推送 Worker 到 Cloudflare"
+	@echo "make deploy      — sync + deploy 一键推送"
+	@echo "make update-rules — 从上游同步规则文件"
 	@echo "make clean / clean-all"
