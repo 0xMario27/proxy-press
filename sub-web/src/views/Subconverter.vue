@@ -471,8 +471,8 @@ p { font-size: 14px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
 }
 
 .opt-in { margin-bottom: 4px; }
-.checks { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-.checks >>> .el-checkbox { margin: 0; }
+.checks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; align-items: start; }
+.checks >>> .el-checkbox { margin: 0 !important; }
 
 .btn-generate {
   width: 100%; height: 42px; font-size: 14px; font-weight: 900; letter-spacing: 3px;
@@ -561,11 +561,13 @@ p { font-size: 14px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
   background: #fff !important;
 }
 >>> .el-select .el-input__suffix { color: #555 !important; }
+>>> .el-select .el-input__suffix-inner { display: flex; align-items: center; }
 >>> .el-select .el-input .el-select__caret {
-  color: #555 !important; font-size: 12px !important;
+  color: #555 !important; font-size: 14px !important; line-height: 1;
   transition: transform 0.2s ease;
 }
 >>> .el-select .el-input.is-focus .el-select__caret { transform: rotate(180deg); color: #1a1a1a !important; }
+>>> .el-select .el-input__icon { color: #555 !important; }
 
 /* 下拉面板 */
 >>> .el-select-dropdown {
