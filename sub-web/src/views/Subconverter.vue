@@ -560,16 +560,22 @@ p { font-size: 14px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
 >>> .el-select .el-input__inner {
   background: #fff !important;
 }
->>> .el-select .el-input__suffix { color: #555 !important; }
->>> .el-select .el-input__suffix-inner { display: flex; align-items: center; }
+>>> .el-select .el-input__suffix {
+  color: #555 !important;
+  display: flex !important; align-items: center !important;
+}
+>>> .el-select .el-input__suffix-inner {
+  display: flex !important; align-items: center !important; justify-content: center !important;
+}
 >>> .el-select .el-input .el-select__caret {
-  color: #555 !important; font-size: 14px !important; line-height: 1;
+  color: #555 !important; font-size: 14px !important; line-height: 1 !important;
   transition: transform 0.2s ease;
+  display: flex !important; align-items: center !important;
 }
 >>> .el-select .el-input.is-focus .el-select__caret { transform: rotate(180deg); color: #1a1a1a !important; }
->>> .el-select .el-input__icon { color: #555 !important; }
+>>> .el-select .el-input__icon { color: #555 !important; line-height: 1 !important; }
 
-/* 下拉面板 */
+/* 下拉面板 — 选项文字统一 */
 >>> .el-select-dropdown {
   border: 1px solid #1a1a1a !important; border-radius: 0 !important;
   background: #fefdf8 !important;
@@ -579,15 +585,16 @@ p { font-size: 14px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
   font-family: "Courier New", monospace !important; font-size: 12px !important;
   color: #333 !important; padding: 7px 12px !important;
   border-bottom: 1px dotted #e0ddd5;
+  font-weight: normal !important;
 }
 >>> .el-select-dropdown__item:last-child { border-bottom: none; }
 >>> .el-select-dropdown__item:hover {
   background: #f5f0e8 !important; color: #1a1a1a !important;
 }
->>> .el-select-dropdown__item.is-selected {
-  background: #1a1a1a !important; color: #f5f0e8 !important; font-weight: bold;
+>>> .el-select-dropdown__item.is-selected, >>> .el-select-dropdown__item.selected {
+  background: #1a1a1a !important; color: #f5f0e8 !important; font-weight: bold !important;
 }
->>> .el-select-dropdown__item.is-hovering, >>> .el-select-dropdown__item.hover {
+>>> .el-select-dropdown__item.hover, >>> .el-select-dropdown__item.is-hovering {
   background: #f5f0e8 !important;
 }
 /* 选项分组标题 */
@@ -597,6 +604,11 @@ p { font-size: 14px; line-height: 1.55; margin: 0 0 6px; text-align: justify; }
   letter-spacing: 2px !important; color: #888 !important;
   text-transform: uppercase; padding: 6px 12px 2px !important;
   background: #faf8f3 !important; border-bottom: 1px solid #e0ddd5;
+}
+/* filterable 搜索框 */
+>>> .el-select-dropdown .el-input__inner {
+  border-radius: 0 !important; border-color: #ccc !important;
+  font-family: "Courier New", monospace !important;
 }
 
 /* 多选框 */
